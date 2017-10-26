@@ -1,0 +1,200 @@
+
+    .sk-cube-grid {
+      width: 150px;
+      height: 150px;
+      margin: 150px auto;
+      /*
+       * Spinner positions
+       * 1 2 3
+       * 4 5 6
+       * 7 8 9
+       */ }
+      .sk-cube-grid .sk-cube {
+        width: 33.33%;
+        height: 33.33%;
+        background-color: #ddd;
+        float: left;
+        -webkit-animation: sk-cubeGridScaleDelay 1.3s infinite ease-in-out;
+                animation: sk-cubeGridScaleDelay 1.3s infinite ease-in-out; }
+      .sk-cube-grid .sk-cube1 {
+        -webkit-animation-delay: 0.2s;
+                animation-delay: 0.2s; }
+      .sk-cube-grid .sk-cube2 {
+        -webkit-animation-delay: 0.3s;
+                animation-delay: 0.3s; }
+      .sk-cube-grid .sk-cube3 {
+        -webkit-animation-delay: 0.4s;
+                animation-delay: 0.4s; }
+      .sk-cube-grid .sk-cube4 {
+        -webkit-animation-delay: 0.1s;
+                animation-delay: 0.1s; }
+      .sk-cube-grid .sk-cube5 {
+        -webkit-animation-delay: 0.2s;
+                animation-delay: 0.2s; }
+      .sk-cube-grid .sk-cube6 {
+        -webkit-animation-delay: 0.3s;
+                animation-delay: 0.3s; }
+      .sk-cube-grid .sk-cube7 {
+        -webkit-animation-delay: 0.0s;
+                animation-delay: 0.0s; }
+      .sk-cube-grid .sk-cube8 {
+        -webkit-animation-delay: 0.1s;
+                animation-delay: 0.1s; }
+      .sk-cube-grid .sk-cube9 {
+        -webkit-animation-delay: 0.2s;
+                animation-delay: 0.2s; }
+    @-webkit-keyframes sk-cubeGridScaleDelay {
+      0%, 70%, 100% {
+        -webkit-transform: scale3D(1, 1, 1);
+                transform: scale3D(1, 1, 1); }
+      35% {
+        -webkit-transform: scale3D(0, 0, 1);
+                transform: scale3D(0, 0, 1); } }
+    @keyframes sk-cubeGridScaleDelay {
+      0%, 70%, 100% {
+        -webkit-transform: scale3D(1, 1, 1);
+                transform: scale3D(1, 1, 1); }
+      35% {
+        -webkit-transform: scale3D(0, 0, 1);
+                transform: scale3D(0, 0, 1); } }
+
+
+    #cloud_api_demo .error_text
+    {
+        color: red;
+        height: 1.0em;
+    }
+
+    #cloud_api_demo .url_entry
+    {
+        width: 300px;
+    }
+
+    #cloud_api_demo .upload_section.byurl .upload_file_button
+    {
+        display: none;
+    }
+
+    #cloud_api_demo .upload_section.byfile input.url_entry,
+    #cloud_api_demo .upload_section.byfile .upload_url_button
+    {
+        display: none;
+    }
+
+    #cloud_api_demo div.form-inline
+    {
+        margin-bottom: 10px;
+    }
+
+    div.demo_popover_body
+    {
+        width: 200px;
+    }
+
+
+    #cloud_api_demo .demo_initial_overlay
+    {
+        left: 0;
+        top: 0;
+        border: 8px dashed #666;
+        width: 100%;
+        height: 100%;
+        text-align: center;
+        padding-top: 155px;
+        font-size: 24px;
+    }
+
+    #cloud_api_demo .demo_preview_img_container
+    {
+        background-color: #f5f5f5;
+        width: 100%;
+        height: 500px;
+        padding: 10px;
+        margin: 15px auto;
+    }
+    #cloud_api_demo .demo_preview_img
+    {
+        width: 555px;
+        height: 100%;
+    }
+
+    #cloud_api_demo .demo_form_controls
+    {
+        width: 100%;
+        margin: auto;
+    }
+
+    #cloud_api_demo .demo_preview_info
+    {
+        overflow-y: scroll;
+        margin-left: 5px;
+        padding-left: 5px;
+
+
+        width: 195px;
+        height: 100%;
+        float: right;
+    }
+
+    #cloud_api_demo .demo_preview_info .demo_info_header
+    {
+        margin-top: 10px;
+        font-weight: bold;
+    }
+    #cloud_api_demo .demo_preview_info .demo_info_value
+    {
+        margin-left: 15px;
+    }
+
+    #cloud_api_demo .demo_preview_info .demo_info_candidate_popover
+    {
+        float: right;
+        margin-top: 10px;
+        margin-right: 10px;
+    }
+
+    #cloud_api_demo .demo_preview_info .candidate_info.matches_template
+    {
+        font-weight: bold;
+    }
+
+    #cloud_api_demo .loading_overlay
+    {
+        position: absolute;
+        width: 820px;
+        height: 500px;
+        margin: auto auto;
+        display: none;
+        z-index: 26777272;
+        left: 0;
+        right: 0;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+    }
+
+    #cloud_api_demo.loading .loading_overlay
+    {
+        display: block;
+        animation: fadeIn 0.5s 1;
+    }
+
+    #cloud_api_demo .loading_overlay div.sk-cube-grid
+    {
+        position: relative;
+        margin-left: 355px;
+        margin-top: 175px;
+    }
+    #cloud_api_demo .upload_form_label
+    {
+        display: inline-block;
+        font-weight: bold;
+        width: 100px;
+    }
+
+    #cloud_api_demo .demo_submit_buttons
+    {
+        margin-top: 10px;
+
+    }
