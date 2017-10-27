@@ -15,8 +15,6 @@ import matplotlib.pyplot as plt
 import time
 import codecs
 import types
-
-from ocr import TesserOCR
 import re
 
 from skimage import data
@@ -29,6 +27,7 @@ from misc.contour import String,Contour,ROI
 from misc.preprocess import preprocess as ipreprocess
 from misc.preprocess import maximizeContrast as icontrast
 
+from feature.extractfeature import goodfeatures_revision
 # threshold variables ##########################################################################
 ADAPTIVE_THRESH_BLOCK_SIZE = 19
 ADAPTIVE_THRESH_WEIGHT = 9
@@ -140,27 +139,37 @@ def Garbor(gray):
     return dest.astype('uint8')    
 
 def DoG(gray):    
-    equalized_image = cv2.equalizeHist(gray)
-    imgb1 = cv2.GaussianBlur(equalized_image, (11, 11), 0)
-    imgb2 = cv2.GaussianBlur(equalized_image, (31, 31), 0)
+    #equalized_image = cv2.equalizeHist(gray)
+    imgb1 = cv2.GaussianBlur(gray, (11, 11), 0)
+    imgb2 = cv2.GaussianBlur(gray, (31, 31), 0)
     return imgb1 - imgb2#Difference of Gaussians    
 
+def tophatblackhat(gray):
+    gray = cv2.GaussianBlur(gray,(3,3),0)
+    rectKernel = cv2.getStructuringElement(cv2.MORPH_RECT, (9, 3))
+    tophat = cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, rectKernel)
+    blackhat = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, rectKernel)
+    showResult("tophat",tophat)
+    showResult("blackhat",blackhat)
+    
 def TopHat(gray):
     # initialize a rectangular (wider than it is tall) and square
     # structuring kernel
     h,w = gray.shape
+    #gray=255-gray
     gray = cv2.resize(gray,None,fx=0.4,fy=0.4)
-    gray = cv2.GaussianBlur(gray,(3,3),0)
+    #gray = cv2.GaussianBlur(gray,(3,3),0)
     rectKernel = cv2.getStructuringElement(cv2.MORPH_RECT, (9, 3))
     sqKernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
     # apply a tophat (whitehat) morphological operator to find light
     # regions against a dark background (i.e., the credit card numbers)
     tophat = cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, rectKernel)
-    #blackhat = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, rectKernel)
+    blackhat = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, rectKernel)
+    hat = cv2.max(tophat,blackhat)
     #showResult("tophat",tophat)
     # compute the Scharr gradient of the tophat image, then scale
     # the rest back into the range [0, 255]
-    gradX = cv2.Sobel(tophat, ddepth=cv2.CV_32F, dx=1, dy=0,ksize=-1)
+    gradX = cv2.Sobel(hat, ddepth=cv2.CV_32F, dx=1, dy=0,ksize=-1)
     #gradY = cv2.Sobel(tophat, ddepth=cv2.CV_32F, dx=0, dy=1,ksize=-1)
     grad = gradX#cv2.min(gradX,gradY)
     grad = np.absolute(grad)
@@ -187,16 +196,16 @@ class VIN(object):
         if image is not None:
             self.bgr = image
             self.preprocess()
+        self.height,self.width = 0,0
         self.contours = []
         self.chars = []
-        self.ocr = TesserOCR()
     
     def initialize(self):
         self.bgr,self.gray,self.laplacian,self.sobel,self.DoG,self.lthr,self.hist,self.contour,self.compose,self.entropy, self.garbor = None, None, None, None, None, None, None, None, None, None, None
     
     def preprocess(self):
         gray = cv2.cvtColor(self.bgr,cv2.COLOR_BGR2GRAY)
-        self.gray = gray
+        self.gray = icontrast(255 - gray)
         self.laplacian = Laplacian(gray)
         #self.sobel = Sobel(gray)
         #self.entropy = Entropy(gray)
@@ -204,70 +213,81 @@ class VIN(object):
         self.DoG = DoG(gray)
         self.lthr = cv2.adaptiveThreshold(self.laplacian, 255.0, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, ADAPTIVE_THRESH_BLOCK_SIZE, ADAPTIVE_THRESH_WEIGHT)        
         self.tophat = 255 - TopHat(gray)
+        #tophatblackhat(gray)
         masks = []
         masks.append(self.tophat)
         masks.append(self.DoG)
         self.compose = maskize(self.lthr,masks)
         self.contour = np.zeros((self.compose.shape[:2]),np.uint8)
+        self.setcontours()
 
     def showAll(self):
         showResult("img",self.bgr)  
         #showResult("gray",self.gray)
         #showResult("sobel",self.sobel)
         #showResult("entropy",self.entropy)
-        #showResult("DoG",self.DoG)
+        showResult("DoG",self.DoG)
         #showResult("garbor",self.garbor)
-        #showResult("laplacian",self.laplacian)     
+        showResult("laplacian",self.laplacian)     
         #showResult("thr",self.lthr)
         #showResult("contour",self.contour)
         #showResult("compose",self.compose)
         showResult("tophat",self.tophat)
 
     def posfiltering(self,isdebug=False):
-        h,w = self.contour.shape
-        chars = sorted(self.chars,key=lambda char:math.log(math.pow(char.brcY,2) + math.sqrt(char.brcX),2))
+        h, w = self.contour.shape
         chars = sorted(self.chars,key=lambda char:int(math.log(char.brH,2)))
-        VIN.drawChars(self.compose,"sorting",chars,isdebug=isdebug)
+        chars = sorted(self.chars,key=lambda char:math.log(math.pow(char.brcY,2) + math.sqrt(char.brcX),2))
+        VIN.drawChars((self.height,self.width),"sorting",chars,isdebug=isdebug)
         strings = []
-        maximum_diff_pos = h/5
-        maximum_diff_height = 4
-        maximum_diff_posy = 0
-        for i in range(len(chars)-1):
+        string = String()
+        string.add(chars[0])                
+        maximum_diff_posy = chars[0].brH
+        maximum_diff_pos = chars[0].brH * 10
+        maximum_diff_height = chars[0].brH/3
+        
+        i = 0
+        while i<len(chars)-2:
             
-            x1,y1,h1 = chars[i].brcX,chars[i].brcY,chars[i].brH
-            x2,y2,h2 = chars[i+1].brcX,chars[i+1].brcY,chars[i+1].brH
-            diff_pos = np.linalg.norm(np.array([x1,y1])-np.array([x2,y2]))
-            diff_posy = abs(y1-y2)
-            diff_size = abs(h1-h2)
-            
-            if i == 0:
-                string = String()
-                string.add(chars[i])                
-                maximum_diff_posy = h1
-                maximum_diff_pos = h1 * 6
-                maximum_diff_height = h1/3
-                
+            diff_pos,diff_posy,diff_size = Contour.isconnectable(chars[i],chars[i+1])
+                           
             if diff_pos < maximum_diff_pos and\
                diff_size < maximum_diff_height and\
                diff_posy < maximum_diff_posy:
                 string.add(chars[i+1])
             else:
+                diff_pos,diff_posy,diff_size = Contour.isconnectable(chars[i],chars[i+2])
+                if diff_pos < maximum_diff_pos and\
+                   diff_size < maximum_diff_height and\
+                   diff_posy < maximum_diff_posy:
+                    string.add(chars[i+2])
+                    i += 2
+                    continue
                 strings.append(string)
                 string = String()
                 string.add(chars[i+1])
                 maximum_diff_posy = chars[i+1].brH
+            i += 1
                 
         strings.append(string)
-        self.strings = sorted(strings,key=lambda string:string.length)
-        if isdebug:
-            for i in range(5):
-                if len(strings) - i > 1 and self.strings[len(strings)-i-1].getlength() > 5:
-                    VIN.drawChars(self.compose,"third-filtering",self.strings[len(strings)-i-1].getitems(),isdebug=isdebug)
+        strings.sort(key=lambda string:string.charcount)
+        self.strings = []
+        for i in range(10):
+            if len(strings) - i > 1 and strings[len(strings)-i-1].getlength() > 5:
+                string = strings[len(strings)-i-1]
+                self.strings.append(string)
+                if isdebug:
+                    VIN.drawChars((self.height,self.width),"third-filtering",string.getitems(),isdebug=isdebug)
+                    #roi = String.extractROI(self.bgr,string)
+                    #showResult("roi",roi.imgPlate)
+            else:
+                break
+        String.sortall(self.strings)
 
     def sizefiltering(self,isdebug=False):
-        self.chars = VIN.find_possible_chars(self.compose)
+        self.chars = VIN.find_possible_chars(self.contours,True)
         if isdebug:
-            VIN.drawChars(self.compose,"first-filtering",self.chars,isdebug=isdebug)
+            VIN.drawChars((self.height,self.width),"first-filtering",self.chars,isdebug=isdebug)
 
     def innerfiltering(self,isdebug=False):
         chars = []
@@ -283,8 +303,126 @@ class VIN(object):
             chars.append(char)
         self.chars =  chars
         if isdebug:
-            VIN.drawChars(self.compose,"inner-filtering",self.chars,isdebug=isdebug)
+            VIN.drawChars((self.height,self.width),"inner-filtering",self.chars,isdebug=isdebug)
+            
+    def finalize(self,isdebug=False):
+        string_ = []
+        strings_ = []
+        chars = Contour.contours2chars(self.contours)
+        chars.sort(key=lambda char:char.brX)
+        #vis = np.zeros((self.height,self.width),np.uint8)
+        #cv2.drawContours(vis,self.contours,-1,(255,255,255),-1)
+        for string in self.strings:
+            height = string.charheight
+            delta = height * 0.15
+            eta =  height * 0.3
+            string_ = String()
+            #cv2.line(vis,(0,string.getcenterliney(0)),(self.width-1,string.getcenterliney(self.width-1)),(255,255,255),2)
+            #showResult("vis",vis)
+            for char in chars:
+                if abs(char.brH - height) < eta and\
+                   abs(string.getcenterliney(char.brcX) - char.brcY) < delta:
+                       string_.add(char)
+            if string_.charcount != 0:
+                string_.sort()
+                strings_.append(string_)
+                chars = list(set(chars) - set(string_.chars))
+
+        String.filtering(strings_)
+        if len(strings_) == 0:
+            return
+        #VIN.drawChars((self.height,self.width),"final",strings_[0].getitems(),isdebug=isdebug)
+        string = strings_[0]
+        if string.charcount > 1:
+            String.mark(self.bgr,string)
+        return
+        if True:
+            for string in strings_:
+                if string.confidence > 0.7:
+                    VIN.drawChars((self.height,self.width),"final",string.getitems(),isdebug=isdebug)
+                    print string.result
+            
+    def process(self,img=None):
+        start = time.time()
+        if img is not None:
+            self.bgr = img
+            self.height,self.width,c = img.shape
+            self.preprocess()
+            #self.showAll()
+        # size filtering
+        self.sizefiltering()
+        # size filtering
+        self.innerfiltering()
+        # ocr filtering
+        #self.ocrfiltering(True)
+        # distance filtering
+        self.posfiltering()
+        self.confidence = self.finalize(True)
+        print time.time() - start
+        return self.confidence
         
+    def setcontours(self,isdebug=False):
+        self.img_contour, self.contours, npaHierarchy = cv2.findContours(self.compose, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)   # find all contours        
+        if isdebug:
+            cv2.drawContours(self.img_contour, self.contours, -1, SCALAR_WHITE, -1)
+            print "\nstep 2 - contours = " + str(len(self.contours))
+            showResult("contours",self.img_contour)
+        
+    @staticmethod        
+    def find_possible_chars(contours,
+                            isdebug=False):
+        #
+        filtered = []                # this will be the return value
+        count = 0
+        for i in range(0, len(contours)):                       # for each contour                  
+            contour = Contour(contours[i])   
+            if contour.checkIfPossibleChar():                   # if contour is a possible char, note this does not compare to other chars (yet) . . .
+                count += 1                                      # increment count of possible chars
+                filtered.append(contour)                        # and add to list of possible chars   
+            
+        return filtered
+
+    @staticmethod    
+    def drawChars(shape,
+                  title,
+                  chars,
+                  colr=SCALAR_WHITE,
+                  isdebug=False):
+        h,w =  shape
+        ratio = 1
+        vis = np.zeros((h,w*ratio,3), np.uint8)
+        img_contours = np.zeros((shape), np.uint8)
+    
+        for i,char in enumerate(chars):
+            cv2.drawContours(img_contours, [char.contour], -1, colr,-1)
+            if isdebug:
+                [x, y] = char.brX,char.brY
+                cv2.putText(vis,str(i),(x*ratio,y),cv2.FONT_HERSHEY_COMPLEX_SMALL, 1,(255,128,128),1,cv2.LINE_AA)
+                contour = char.contour.copy()
+                contour[:,:,0] *= ratio
+                cv2.drawContours(vis, [contour], -1, colr,-1)
+        if isdebug:
+            showResult(title,vis)
+        return img_contours
+
+
+##### Test Variable
+dataset_path = "/media/ubuntu/Investigation/DataSet/Image/Classification/Insurance/Insurance/Tmp/VIN/"
+filename = "38.jpg"
+fullpath = dataset_path + filename
+
+lp = VIN()
+
+if __name__ == "__main__":
+    #main(cv2.imread(fullpath,0))
+    lp.initialize()
+    lp.process(img=cv2.imread(fullpath))
+    #VIN.detect_by_gf(cv2.imread(fullpath))
+    #VIN.detect_by_erfilter(img=cv2.imread(fullpath),isdebug=True)
+    #VIN.detect_by_contour(img=cv2.imread(fullpath),isdebug=True)
+    #VIN.detect_by_smer(img=cv2.imread(fullpath),isdebug=True)
+  
+'''
     def ocrfiltering(self,isdebug=False):
         chars = []
         h,w = self.bgr.shape[:2]
@@ -303,114 +441,8 @@ class VIN(object):
                     chars.append(candidate)
         self.chars =  chars
         if isdebug:
-            VIN.drawChars(self.compose,"second-filtering",self.chars,isdebug=isdebug)
-        
-    def process(self,img=None):
-        start = time.time()
-        if img is not None:
-            self.bgr = img
-            self.preprocess()
-        self.showAll()
-        # size filtering
-        self.sizefiltering(True)
-        # size filtering
-        self.innerfiltering(True)
-        # ocr filtering
-        #self.ocrfiltering(True)
-        # distance filtering
-        self.posfiltering(True)
-        print time.time() - start
-        
-    def makeContourImg():
-        pass
-        
-    @staticmethod        
-    def find_possible_chars(thr,
-                            isdebug=False):
-        #
-        tmp = thr.copy()
-        img_contour, contours, npaHierarchy = cv2.findContours(tmp, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)   # find all contours
-        height, width = thr.shape
-        img_contour = np.zeros((height, width, 3), np.uint8)
-        #
-        filtered = []                # this will be the return value
-        count = 0
-        for i in range(0, len(contours)):                       # for each contour
-    
-            if isdebug:
-                cv2.drawContours(img_contour, contours, i, SCALAR_WHITE)
-                
-            contour = Contour(contours[i])
-    
-            if contour.checkIfPossibleChar():                   # if contour is a possible char, note this does not compare to other chars (yet) . . .
-                count += 1                                      # increment count of possible chars
-                filtered.append(contour)                        # and add to list of possible chars
-    
-        if isdebug:
-            print "\nstep 2 - contours = " + str(len(contours))       # 2362 with MCLRNF1 image
-            print "step 2 - chars = " + str(count)       # 131 with MCLRNF1 image
-            showResult("contours",img_contour)
-        return filtered
-
-    @staticmethod    
-    def extractROI(origin, string):
-        roi = ROI()           # this will be the return value
-    
-        string.sort(key = lambda char: char.brcX)        # sort chars from left to right based on x position
-    
-        # calculate the center point of the plate
-        center_x = (string[0].brcX + string[len(string) - 1].brcX) / 2.0
-        center_y = (string[0].brcY + string[len(string) - 1].brcY) / 2.0
-        center = center_x, center_y
-    
-        # calculate plate width and height
-        intPlateWidth = int((string[len(string) - 1].brX + string[len(string) - 1].brW - string[0].brX) * PLATE_WIDTH_PADDING_FACTOR)
-    
-        intTotalOfCharHeights = 0
-    
-        for matchingChar in string:
-            intTotalOfCharHeights = intTotalOfCharHeights + matchingChar.brH
-    
-        fltAverageCharHeight = intTotalOfCharHeights / len(string)    
-        intPlateHeight = int(fltAverageCharHeight * PLATE_HEIGHT_PADDING_FACTOR)   
-        # calculate correction angle of plate region
-        fltOpposite = string[len(string) - 1].brY - string[0].brY
-        fltHypotenuse = Contour.distanceBetweenChars(string[0], string[len(string) - 1])
-        fltCorrectionAngleInRad = math.asin(fltOpposite / fltHypotenuse)
-        fltCorrectionAngleInDeg = fltCorrectionAngleInRad * (180.0 / math.pi)
-    
-        # pack plate region center point, width and height, and correction angle into rotated rect member variable of plate
-        roi.rrLocationOfPlateInScene = (tuple(center), (intPlateWidth, intPlateHeight), fltCorrectionAngleInDeg )    
-        # get the rotation matrix for our calculated correction angle
-        rmatrix = cv2.getRotationMatrix2D(tuple(center), fltCorrectionAngleInDeg, 1.0)    
-        height, width, numChannels = origin.shape      # unpack original image width and height    
-        rotated = cv2.warpAffine(origin, rmatrix, (width, height))       # rotate the entire image    
-        cropped = cv2.getRectSubPix(rotated, (intPlateWidth, intPlateHeight), tuple(center))    
-        roi.imgPlate = cropped         # copy the cropped plate image into the applicable member variable of the possible plate
-    
-        return roi
-
-    @staticmethod    
-    def drawChars(img,
-                  title,
-                  chars,
-                  colr=SCALAR_WHITE,
-                  isdebug=False):
-        h,w =  img.shape[:2]
-        ratio = 1
-        vis = np.zeros((h*ratio,w*ratio,3), np.uint8)
-        img_contours = np.zeros((img.shape), np.uint8)
-    
-        for i,char in enumerate(chars):
-            cv2.drawContours(img_contours, [char.contour], -1, colr,-1)
-            if isdebug:
-                [x, y] = char.brX,char.brY
-                cv2.putText(vis,str(i),(x*ratio,y*ratio),cv2.FONT_HERSHEY_COMPLEX_SMALL, 1,(255,128,128),1,cv2.LINE_AA)
-                cv2.drawContours(vis, [char.contour*ratio], -1, colr,-1)
-        if isdebug:
-            showResult(title,vis)
-        return img_contours
-
+            VIN.drawChars((self.height,self.width),"second-filtering",self.chars,isdebug=isdebug)
+            
     @staticmethod
     def detect_by_contour(img,
                           isdebug=False):
@@ -443,7 +475,7 @@ class VIN(object):
         ROIs = []
         bboxes = []
         for string in strings:                   # for each group of matching chars
-            roi = VIN.extractROI(img, string)         # attempt to extract plate
+            roi = String.extractROI(img, string)         # attempt to extract plate
     
             if roi.imgPlate is not None:                          # if plate was found
                 ROIs.append(roi)                  # add to list of possible plates
@@ -512,7 +544,7 @@ class VIN(object):
             vis = cv2.cvtColor(gray,cv2.COLOR_GRAY2BGR)
             cv2.polylines(vis, hulls_, 1, (0, 255, 0))
             #filtering
-            '''
+
             rects = regions[1]
             #print rects
             for rect in rects:
@@ -521,7 +553,7 @@ class VIN(object):
                 print x,y,w,h
                 #cv2.rectangle(vis,(x,y),(x+w,y+h),(0,255,0),-1)
                 cv2.rectangle(vis,(x,y),(x+w,y+h),(0,255,0),1,8,0)
-            '''
+
             showResult("vis",vis)
         # create text region mask
         mask = np.zeros((h,w,3), dtype=np.uint8)
@@ -568,19 +600,14 @@ class VIN(object):
                 cv2.rectangle(vis, (rect[0],rect[1]), (rect[0]+rect[2],rect[1]+rect[3]), (255, 255, 255), 1)
             
         showResult("Text detection result", vis)
-
-##### Test Variable
-dataset_path = "/media/ubuntu/Investigation/DataSet/Image/Classification/Insurance/Insurance/Tmp/VIN/"
-filename = "23.jpg"
-fullpath = dataset_path + filename
-
-lp = VIN()
-
-if __name__ == "__main__":
-    #main(cv2.imread(fullpath,0))
-    lp.initialize()
-    lp.process(img=cv2.imread(fullpath))
-    #VIN.detect_by_erfilter(img=cv2.imread(fullpath),isdebug=True)
-    #VIN.detect_by_contour(img=cv2.imread(fullpath),isdebug=True)
-    #VIN.detect_by_smer(img=cv2.imread(fullpath),isdebug=True)
-    
+ 
+    @staticmethod
+    def detect_by_gf(origin,
+                     isdebug=False):
+        if origin is None:
+            return None
+        # Default Size
+        h,w,c = origin.shape
+        # Extract Good Features
+        goodfeatures_revision(origin,True)
+'''
