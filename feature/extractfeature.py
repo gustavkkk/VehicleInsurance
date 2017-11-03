@@ -53,6 +53,15 @@ def goodFeatures(gray,
     
     return corners
 
+def Laplacian(gray):
+    denoised = cv2.GaussianBlur(gray,(5,5),0)
+    laplacian = cv2.Laplacian(denoised,cv2.CV_64F, ksize = 3,scale = 2,delta = 1)
+    laplacian -= np.amin(laplacian)
+    laplacian = laplacian * 255 / (np.amax(laplacian) - np.amin(laplacian))
+    laplacian[laplacian>255]=255
+    laplacian = laplacian.astype('uint8')
+    return laplacian
+
 def FeatureSpace(img,
                  target="LP"):
     # RGB->HSV
@@ -62,12 +71,24 @@ def FeatureSpace(img,
     #gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
     #s_ = np.array(s.shape)
     #s_ = cv2.normalize(s,  s_, 0, 255, cv2.NORM_MINMAX)
+        
     for case in switch(target):
         if case('LP'):           
             return s
         if case('VIN'):
             return v           
 
+def goodfeatures_revision(colr,isdebug=False):
+    size=500.0
+    h,w,c = colr.shape
+    img = cv2.resize(colr,(int(w*size/h),int(size)))    
+    fspace = Laplacian(cv2.cvtColor(img,cv2.COLOR_BGR2GRAY))
+    corners =  goodFeatures(fspace)
+    refined = FeatureFiltering(corners)
+    if isdebug:
+        checkFeatures(img,refined,isdebug)
+    return refined
+    
 def refinedGoodFeatures(colr,
                         tgt,
                         model='LP',

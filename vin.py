@@ -38,12 +38,12 @@ SCALAR_YELLOW = (0.0, 255.0, 255.0)
 SCALAR_GREEN = (0.0, 255.0, 0.0)
 SCALAR_RED = (0.0, 0.0, 255.0)
 # padding variables ##########################################################################
-PLATE_WIDTH_PADDING_FACTOR = 1.3
-PLATE_HEIGHT_PADDING_FACTOR = 1.5
+EXPECTED_HEIGHT = 500.0
+EXPECTED_WIDTH = 768.0#768.0#1024.0
 
 ascii_regex = ['0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z']
 unicode_regex = [u'0',u'1',u'2',u'3',u'4',u'5',u'6',u'7',u'8',u'9',u'A',u'B',u'C',u'D',u'E',u'F',u'G',u'H',u'I',u'J',u'K',u'L',u'M',u'N',u'O',u'P',u'Q',u'R',u'S',u'T',u'U',u'V',u'W',u'X',u'Y',u'Z']
-
+    
 def Ischinese(string):
     if re.sub(r'\W', "", string) == "":
         return True
@@ -211,11 +211,11 @@ class VIN(object):
         #self.entropy = Entropy(gray)
         #self.garbor = Garbor(gray)
         self.DoG = DoG(gray)
-        self.lthr = cv2.adaptiveThreshold(self.laplacian, 255.0, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, ADAPTIVE_THRESH_BLOCK_SIZE, ADAPTIVE_THRESH_WEIGHT)        
+        self.lthr = cv2.adaptiveThreshold(self.laplacian, 255.0, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, ADAPTIVE_THRESH_BLOCK_SIZE, ADAPTIVE_THRESH_WEIGHT)
         self.tophat = 255 - TopHat(gray)
         #tophatblackhat(gray)
         masks = []
-        masks.append(self.tophat)
+        #masks.append(self.tophat)
         masks.append(self.DoG)
         self.compose = maskize(self.lthr,masks)
         self.contour = np.zeros((self.compose.shape[:2]),np.uint8)
@@ -228,44 +228,45 @@ class VIN(object):
         #showResult("entropy",self.entropy)
         showResult("DoG",self.DoG)
         #showResult("garbor",self.garbor)
-        showResult("laplacian",self.laplacian)     
+        #showResult("laplacian",self.laplacian)     
         #showResult("thr",self.lthr)
         #showResult("contour",self.contour)
-        #showResult("compose",self.compose)
-        showResult("tophat",self.tophat)
+        showResult("compose",self.compose)
+        #showResult("tophat",self.tophat)
 
     def posfiltering(self,isdebug=False):
         h, w = self.contour.shape
-        chars = sorted(self.chars,key=lambda char:int(math.log(char.brH,2)))
-        chars = sorted(self.chars,key=lambda char:math.log(math.pow(char.brcY,2) + math.sqrt(char.brcX),2))
+        #chars = self.chars
+        chars = self.sortchars()
         VIN.drawChars((self.height,self.width),"sorting",chars,isdebug=isdebug)
         strings = []
         string = String()
-        string.add(chars[0])                
+        string.push(chars[0])                
         maximum_diff_posy = chars[0].brH
         maximum_diff_pos = chars[0].brH * 10
         maximum_diff_height = chars[0].brH/3
         
         i = 0
-        while i<len(chars)-2:
+        while i<len(chars)-1:
             
             diff_pos,diff_posy,diff_size = Contour.isconnectable(chars[i],chars[i+1])
                            
             if diff_pos < maximum_diff_pos and\
                diff_size < maximum_diff_height and\
                diff_posy < maximum_diff_posy:
-                string.add(chars[i+1])
+                string.push(chars[i+1])
             else:
-                diff_pos,diff_posy,diff_size = Contour.isconnectable(chars[i],chars[i+2])
-                if diff_pos < maximum_diff_pos and\
-                   diff_size < maximum_diff_height and\
-                   diff_posy < maximum_diff_posy:
-                    string.add(chars[i+2])
-                    i += 2
-                    continue
+                if i < len(chars) - 2:
+                    diff_pos,diff_posy,diff_size = Contour.isconnectable(chars[i],chars[i+2])
+                    if diff_pos < maximum_diff_pos and\
+                       diff_size < maximum_diff_height and\
+                       diff_posy < maximum_diff_posy:
+                        string.push(chars[i+2])
+                        i += 2
+                        continue
                 strings.append(string)
                 string = String()
-                string.add(chars[i+1])
+                string.push(chars[i+1])
                 maximum_diff_posy = chars[i+1].brH
             i += 1
                 
@@ -273,7 +274,7 @@ class VIN(object):
         strings.sort(key=lambda string:string.charcount)
         self.strings = []
         for i in range(10):
-            if len(strings) - i > 1 and strings[len(strings)-i-1].getlength() > 5:
+            if len(strings) - i >= 1 and strings[len(strings)-i-1].getlength() > 5:
                 string = strings[len(strings)-i-1]
                 self.strings.append(string)
                 if isdebug:
@@ -285,34 +286,80 @@ class VIN(object):
         String.sortall(self.strings)
 
     def sizefiltering(self,isdebug=False):
+        #
         self.chars = VIN.find_possible_chars(self.contours,True)
+        #
+        self.sizemap()
         if isdebug:
             VIN.drawChars((self.height,self.width),"first-filtering",self.chars,isdebug=isdebug)
-
-    def innerfiltering(self,isdebug=False):
-        chars = []
+  
+    def sizemap(self):
+        histogram = {}
         for char in self.chars:
+            char.logsize = round(math.log(char.brH,2))
+            if char.logsize in histogram:
+                histogram[char.logsize] += 1
+            else:
+                histogram[char.logsize] = 1
+        #histogram =  sorted(histogram,key = histogram.get,reverse=True)
+        filtered = [key for key in histogram if histogram[key] < 300 and histogram[key] > 10]
+        chars_ = []
+        for char in self.chars:
+            if char.logsize in filtered:
+                chars_.append(char)
+        self.chars = chars_
+
+    def sortchars(self):
+        chars = sorted(self.chars,key=lambda char:round(math.log(char.brH,2)))
+        chars = sorted(self.chars,key=lambda char:math.log(math.pow(char.brcY,2) + math.sqrt(char.brcX),2))        
+        self.chars = chars
+        return chars
+    
+    def noisefiltering(self,isdebug=False):
+        chars_ = []
+        chars = self.chars#self.sortchars()
+        for i in range(2,len(chars)-2):
+            [xc, yc, h] = chars[i].brcX,chars[i].brcY,chars[i].brH
+            count = 0
+            for j in [-2,-1,1,2]:
+                [xxc, yyc] = chars[i+j].brcX,chars[i+j].brcY
+                if np.linalg.norm(np.array([xc,yc]) - np.array([xxc,yyc])) < 2*h:
+                    count += 1
+            if count < 1:
+                continue
+            chars_.append(chars[i])
+        self.chars =  chars_
+        if isdebug:
+            VIN.drawChars((self.height,self.width),"inner-filtering",self.chars,isdebug=isdebug)
+
+    @staticmethod
+    def innerfiltering(chars,isdebug=False):
+        chars_ = []
+        for i,char in enumerate(chars):
             [x, y, w, h] = char.brX,char.brY,char.brW,char.brH
             isinner = False
-            for char_ in self.chars:
+            for j,char_ in enumerate(chars):
                 [xx, yy, ww, hh] = char_.brX,char_.brY,char_.brW,char_.brH
                 if x > xx and y > yy and (x+w) < (xx+ww) and (y+h) < (yy+hh):
                     isinner = True
             if isinner:
                 continue
-            chars.append(char)
-        self.chars =  chars
-        if isdebug:
-            VIN.drawChars((self.height,self.width),"inner-filtering",self.chars,isdebug=isdebug)
-            
-    def finalize(self,isdebug=False):
+            chars_.append(char)
+                  
+        return chars_
+              
+    def makeup(self,isdebug=False):
         string_ = []
         strings_ = []
-        chars = Contour.contours2chars(self.contours)
+        chars = self.chars#Contour.contours2chars(self.contours)
         chars.sort(key=lambda char:char.brX)
         #vis = np.zeros((self.height,self.width),np.uint8)
         #cv2.drawContours(vis,self.contours,-1,(255,255,255),-1)
         for string in self.strings:
+            # need checking or not
+            if string.confidence > 0.9 and string.density > 0.9:
+                strings_.append(string)
+                continue
             height = string.charheight
             delta = height * 0.15
             eta =  height * 0.3
@@ -322,44 +369,114 @@ class VIN(object):
             for char in chars:
                 if abs(char.brH - height) < eta and\
                    abs(string.getcenterliney(char.brcX) - char.brcY) < delta:
-                       string_.add(char)
+                       string_.push(char)
             if string_.charcount != 0:
                 string_.sort()
                 strings_.append(string_)
                 chars = list(set(chars) - set(string_.chars))
 
-        String.filtering(strings_)
-        if len(strings_) == 0:
-            return
-        #VIN.drawChars((self.height,self.width),"final",strings_[0].getitems(),isdebug=isdebug)
-        string = strings_[0]
-        if string.charcount > 1:
-            String.mark(self.bgr,string)
-        return
-        if True:
+        strings_.sort(key=lambda string:string.confidence,reverse=True)
+        if isdebug:
             for string in strings_:
-                if string.confidence > 0.7:
-                    VIN.drawChars((self.height,self.width),"final",string.getitems(),isdebug=isdebug)
+                VIN.drawChars((self.height,self.width),"final",string.getitems(),isdebug=isdebug)        
+        return strings_
+
+    @staticmethod
+    def ocrchecking(image,strings,isMandatory=False):
+        if len(strings) == 0:
+            return None
+        string = strings[0]
+        print VIN.string2txt(image,string)
+        if string.isAcceptable() is False or isMandatory:
+            strings = String.filtering_by_ocr(strings)
+        strings.sort(key=lambda string:string.confidence + 0.06 * string.meaningfulcharcount + string.density,reverse=True)
+        strings = String.filtering_by_criteria(strings)
+        if len(strings) != 0:
+            return strings
+        else:
+            return None
+        
+    def finalize(self,isdebug=False):
+        strings_ = self.makeup(isdebug=isdebug)
+        # need ocr or not
+        strings_ = VIN.ocrchecking(self.bgr,strings_,False)
+        #
+        if strings_ is not None:
+            if True:           
+                for string in strings_:
+                    String.mark(self.bgr,string)
+                    #VIN.drawChars((self.height,self.width),"final",string.getitems(),isdebug=isdebug)
                     print string.result
+            return True
+        else:
+            return False
+
+    @staticmethod    
+    def string2txt(image,string):
+        roi = String.extractROI(image, string, False)
+        bgr = roi.cropped
+        gray = cv2.cvtColor(bgr,cv2.COLOR_BGR2GRAY)
+        laplacian = Laplacian(gray)
+        lthr = cv2.adaptiveThreshold(laplacian, 255.0, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, ADAPTIVE_THRESH_BLOCK_SIZE, ADAPTIVE_THRESH_WEIGHT)
+        dog = DoG(gray)
+        compose = maskize(lthr,dog)
+        ###
+        img_contour, contours, npaHierarchy = cv2.findContours(compose, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        cv2.drawContours(img_contour, contours, -1, SCALAR_WHITE, -1)
+        chars = VIN.find_possible_chars(contours,False)
+        chars = VIN.innerfiltering(chars)
+        chars.sort(key=lambda char:char.brX)
+        img_char = VIN.drawChars(gray.shape,"size-filtering",chars)
+        compose = maskize(img_contour,255-img_char)
+        showResult("compose",compose)
+        ### OCR
+        ocrresult,count = string.ocr2(compose,chars)
+        string.meaningfulcharcount = count
+        return ocrresult
+        
+    def TestOCR(self,isdebug=False):
+        strings_ = self.makeup(isdebug=isdebug)
+        for string in strings_:
+            ocrresult,count = VIN.string2txt(self.bgr,string)
             
+    def TestSegmentation(self,isdebug=False):
+        strings_ = self.makeup(isdebug=isdebug)
+        String.mark(self.bgr,strings_)
+        for string in strings_:
+            String.makesegments(self.bgr,string)
+        
+    def resize(self,img):
+        h,w,c = img.shape
+        if h > w:
+            ratio = EXPECTED_WIDTH/w
+            start = (h-w)/2
+            cropped = img[start:start+w,:,:]
+        else:
+            ratio = EXPECTED_WIDTH/w
+            cropped = img
+        #ratio = 1.0 if ratio < 1.0 else ratio
+        self.bgr = cv2.resize(cropped,None,fx=ratio,fy=ratio,interpolation=cv2.INTER_CUBIC)
+        self.height,self.width,c = self.bgr.shape
+        
     def process(self,img=None):
         start = time.time()
         if img is not None:
-            self.bgr = img
-            self.height,self.width,c = img.shape
+            self.resize(img)
             self.preprocess()
-            #self.showAll()
+            self.showAll()
         # size filtering
         self.sizefiltering()
-        # size filtering
-        self.innerfiltering()
-        # ocr filtering
-        #self.ocrfiltering(True)
+        # inner filtering
+        self.chars = self.innerfiltering(self.chars)
+        #
+        #self.noisefiltering()
         # distance filtering
         self.posfiltering()
-        self.confidence = self.finalize(True)
+        # makeup and finalize
+        isFound = self.finalize()
+        #self.doagain4eachstring()
         print time.time() - start
-        return self.confidence
+        return isFound
         
     def setcontours(self,isdebug=False):
         self.img_contour, self.contours, npaHierarchy = cv2.findContours(self.compose, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)   # find all contours        
@@ -405,11 +522,12 @@ class VIN(object):
             showResult(title,vis)
         return img_contours
 
-
+#http://jmgomez.me/a-fruit-image-classifier-with-python-and-simplecv/        
 ##### Test Variable
 dataset_path = "/media/ubuntu/Investigation/DataSet/Image/Classification/Insurance/Insurance/Tmp/VIN/"
-filename = "38.jpg"
-fullpath = dataset_path + filename
+test_path = "/media/ubuntu/Investigation/DataSet/Image/Classification/Insurance/Tmp/VIN-scrapy/renamed/"
+filename = "95.jpg"
+fullpath = test_path + filename
 
 lp = VIN()
 

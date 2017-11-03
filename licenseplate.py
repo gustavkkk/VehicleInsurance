@@ -598,8 +598,8 @@ class LicensePlate(object):
     def correctImg(self,
                    isdebug=False):
 
-        line_upper  = [];
-        line_lower = [];
+        line_upper  = []
+        line_lower = []
     
         for contour in self.contours:
             #[x,y,w,h] = cv2.boundingRect(contour)
