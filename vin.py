@@ -10,24 +10,18 @@ regular expression:http://www.tutorialspoint.com/python/python_reg_expressions.h
 import cv2
 import numpy as np
 import math
-import random
-import matplotlib.pyplot as plt
-import time
-import codecs
-import types
-import re
-
-from skimage import data
-from skimage.util import img_as_ubyte
-from skimage.filters.rank import entropy
-from skimage.morphology import disk
+#import random
+#import matplotlib.pyplot as plt
+#import time
 
 from feature.bbox import showResult
-from misc.contour import String,Contour,ROI
-from misc.preprocess import preprocess as ipreprocess
+from misc.contour import String,Contour#,ROI
+#from misc.preprocess import preprocess as ipreprocess
 from misc.preprocess import maximizeContrast as icontrast
 
-from feature.extractfeature import goodfeatures_revision
+from feature.space import Laplacian,DoG,TopHat,maskize,AdaptiveThreshold,tophatblackhat
+
+#from feature.extractfeature import goodfeatures_revision
 # threshold variables ##########################################################################
 ADAPTIVE_THRESH_BLOCK_SIZE = 19
 ADAPTIVE_THRESH_WEIGHT = 9
@@ -43,165 +37,93 @@ EXPECTED_WIDTH = 768.0#768.0#1024.0
 
 ascii_regex = ['0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z']
 unicode_regex = [u'0',u'1',u'2',u'3',u'4',u'5',u'6',u'7',u'8',u'9',u'A',u'B',u'C',u'D',u'E',u'F',u'G',u'H',u'I',u'J',u'K',u'L',u'M',u'N',u'O',u'P',u'Q',u'R',u'S',u'T',u'U',u'V',u'W',u'X',u'Y',u'Z']
+
+def drawChars(shape,
+              title,
+              chars,
+              colr=SCALAR_WHITE,
+              isdebug=False):
+    h,w =  shape
+    ratio = 1
+    vis = np.zeros((h,w*ratio,3), np.uint8)
+    img_contours = np.zeros((shape), np.uint8)
+
+    for i,char in enumerate(chars):
+        cv2.drawContours(img_contours, [char.contour], -1, colr,-1)
+        if isdebug:
+            [x, y] = char.brX,char.brY
+            cv2.putText(vis,str(i),(x*ratio,y),cv2.FONT_HERSHEY_COMPLEX_SMALL, 1,(255,128,128),1,cv2.LINE_AA)
+            contour = char.contour.copy()
+            contour[:,:,0] *= ratio
+            cv2.drawContours(vis, [contour], -1, colr,-1)
+    if isdebug:
+        showResult(title,vis)
+    return img_contours
+
+def find_possible_chars(contours,
+                        isdebug=False):
+    #
+    filtered = []                # this will be the return value
+    count = 0
+    for i in range(0, len(contours)):                       # for each contour                  
+        contour = Contour(contours[i])   
+        if contour.checkIfPossibleChar():                   # if contour is a possible char, note this does not compare to other chars (yet) . . .
+            count += 1                                      # increment count of possible chars
+            filtered.append(contour)                        # and add to list of possible chars   
+        
+    return filtered
+
+def innerfiltering(chars,isdebug=False):
+    chars_ = []
+    for i,char in enumerate(chars):
+        [x, y, w, h] = char.brX,char.brY,char.brW,char.brH
+        isinner = False
+        for j,char_ in enumerate(chars):
+            [xx, yy, ww, hh] = char_.brX,char_.brY,char_.brW,char_.brH
+            if x > xx and y > yy and (x+w) < (xx+ww) and (y+h) < (yy+hh):
+                isinner = True
+        if isinner:
+            continue
+        chars_.append(char)
+              
+    return chars_
+
+def string2txt(image,string):
+    roi = String.extractROI(image, string, False)
+    bgr = roi.cropped
+    gray = cv2.cvtColor(bgr,cv2.COLOR_BGR2GRAY)
+    laplacian = Laplacian(gray)
+    lthr = cv2.adaptiveThreshold(laplacian, 255.0, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, ADAPTIVE_THRESH_BLOCK_SIZE, ADAPTIVE_THRESH_WEIGHT)
+    dog = DoG(gray)
+    compose = maskize(lthr,dog)
+    ###
+    img_contour, contours, npaHierarchy = cv2.findContours(compose, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    cv2.drawContours(img_contour, contours, -1, SCALAR_WHITE, -1)
+    chars = find_possible_chars(contours,False)
+    chars = innerfiltering(chars)
+    chars.sort(key=lambda char:char.brX)
+    img_char = drawChars(gray.shape,"size-filtering",chars)
+    compose = maskize(img_contour,255-img_char)
+    #showResult("compose",compose)
+    ### OCR
+    ocrresult,count = string.ocr2(compose,chars)
+    string.meaningfulcharcount = count
+    return ocrresult
     
-def Ischinese(string):
-    if re.sub(r'\W', "", string) == "":
-        return True
-    else:
-        return False
-
-def utf2int(string):
-    #utf8 = '\xe3\x80\x81' 
-    utf8 = string.encode('hex')
-    val = 0 
-    for octet in utf8: 
-        val = ( val * 256 ) + ord( octet ) 
-    print val
-
-def hex2utf8(integer):
-    utf8encode = codecs.getencoder( 'utf-8' ) 
-    return utf8encode(unichr(0x3001))[0] 
- 
-def ascii2int(ascii):
-    return ord(ascii)
-
-def int2ascii(integer):
-    return unichr(integer)
-
-def uint8tobinary(mask,reverse=False):
-    mask_ = mask.copy()
-    if reverse:
-        mask_[mask>128] = 1
-        mask_[mask<=128] = 0
-    else:
-        mask_[mask>128] = 0
-        mask_[mask<=128] = 1
-    return mask_
-
-def maskize(img,masks,reverse=False):
-    if type(masks) is types.ListType:
-        mask_ = uint8tobinary(masks[0],reverse=reverse)
-        for i in range(1,len(masks)):
-            mask_ *= uint8tobinary(masks[i])
-    else:    
-        mask_ = uint8tobinary(masks,reverse=reverse)
-    if len(img.shape) > 2:
-        masked = img*mask_[:,:,np.newaxis]
-    else:
-        masked = img*mask_
-    return masked
-
-def Laplacian(gray):
-    denoised = cv2.GaussianBlur(gray,(5,5),0)
-    laplacian = cv2.Laplacian(denoised,cv2.CV_64F, ksize = 3,scale = 2,delta = 1)
-    laplacian -= np.amin(laplacian)
-    laplacian = laplacian * 255 / (np.amax(laplacian) - np.amin(laplacian))
-    laplacian[laplacian>255]=255
-    laplacian = laplacian.astype('uint8')
-    return icontrast(laplacian)#laplacian
-
-def Sobel(gray):
-    sobel_vertical = cv2.Sobel(gray,cv2.CV_64F,1,0,ksize = 3)
-    sobel_horizontal = cv2.Sobel(gray,cv2.CV_64F,0,1,ksize=3)
-    sobel = cv2.min(sobel_horizontal,sobel_vertical)
-    #print np.amin(sobel),np.amax(sobel)
-    min_,max_ = np.amin(sobel),np.amax(sobel)
-    sobel -= min_
-    sobel = sobel * 255 / (max_ - min_)
-    sobel = sobel.astype('uint8')
-    return sobel    
-
-def Entropy(gray):
-    en_ = entropy(gray, disk(3))
-    min_ = np.amin(en_)
-    max_ = np.amax(en_)
-    en_ -= min_
-    en_ = en_ * 255 / (max_ - min_)
-    en_ = en_.astype('uint8')
-    return en_
-
-def Garbor(gray):        
-    #https://corpocrat.com/2015/03/25/applying-gabor-filter-on-faces-using-opencv/
-    src = gray.astype('float32')
-    ksize,sigma,gamma,ps = 31, 1.0, 0.02, 0
-    filters = []
-    for theta in np.arange(0, np.pi, np.pi / 8):
-        for lamda in np.arange(0, np.pi, np.pi/4): 
-            kernel = cv2.getGaborKernel((ksize, ksize), sigma, theta, lamda, gamma, ps, ktype=cv2.CV_32F)
-            kernel /= 1.5*kernel.sum()
-            filters.append(kernel)
-    dest = np.zeros((src.shape),np.float32)#np.zeros_like(src.shape)
-    for kernel in filters:
-        fimg = cv2.filter2D(src, cv2.CV_32F, kernel)
-        np.maximum(dest, fimg, dest)
-    #ksize,sigma,theta,lamda,gamma,ps = 31, 1, 0, 1.0, 0.02, 0
-    #kernel = cv2.getGaborKernel((ksize, ksize), sigma, theta, lamda, gamma, ps, ktype=cv2.CV_32F)
-    return dest.astype('uint8')    
-
-def DoG(gray):    
-    #equalized_image = cv2.equalizeHist(gray)
-    imgb1 = cv2.GaussianBlur(gray, (11, 11), 0)
-    imgb2 = cv2.GaussianBlur(gray, (31, 31), 0)
-    return imgb1 - imgb2#Difference of Gaussians    
-
-def tophatblackhat(gray):
-    gray = cv2.GaussianBlur(gray,(3,3),0)
-    rectKernel = cv2.getStructuringElement(cv2.MORPH_RECT, (9, 3))
-    tophat = cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, rectKernel)
-    blackhat = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, rectKernel)
-    showResult("tophat",tophat)
-    showResult("blackhat",blackhat)
-    
-def TopHat(gray):
-    # initialize a rectangular (wider than it is tall) and square
-    # structuring kernel
-    h,w = gray.shape
-    #gray=255-gray
-    gray = cv2.resize(gray,None,fx=0.4,fy=0.4)
-    #gray = cv2.GaussianBlur(gray,(3,3),0)
-    rectKernel = cv2.getStructuringElement(cv2.MORPH_RECT, (9, 3))
-    sqKernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-    # apply a tophat (whitehat) morphological operator to find light
-    # regions against a dark background (i.e., the credit card numbers)
-    tophat = cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, rectKernel)
-    blackhat = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, rectKernel)
-    hat = cv2.max(tophat,blackhat)
-    #showResult("tophat",tophat)
-    # compute the Scharr gradient of the tophat image, then scale
-    # the rest back into the range [0, 255]
-    gradX = cv2.Sobel(hat, ddepth=cv2.CV_32F, dx=1, dy=0,ksize=-1)
-    #gradY = cv2.Sobel(tophat, ddepth=cv2.CV_32F, dx=0, dy=1,ksize=-1)
-    grad = gradX#cv2.min(gradX,gradY)
-    grad = np.absolute(grad)
-    (minVal, maxVal) = (np.min(grad), np.max(grad))
-    grad = (255 * ((grad - minVal) / (maxVal - minVal)))
-    grad = grad.astype("uint8")
-    # apply a closing operation using the rectangular kernel to help
-    # cloes gaps in between credit card number digits, then apply
-    # Otsu's thresholding method to binarize the image
-    grad = cv2.morphologyEx(grad, cv2.MORPH_CLOSE, rectKernel)
-    thresh = cv2.threshold(grad, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]    
-    # apply a second closing operation to the binary image, again
-    # to help close gaps between credit card number regions
-    thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, sqKernel)
-    thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, sqKernel)
-    thresh = cv2.dilate(thresh,None, iterations=6)
-    thresh = cv2.resize(thresh,(w,h),interpolation=cv2.INTER_LINEAR)
-    return thresh
-
 class VIN(object):
     
     def __init__(self,image=None):
-        self.bgr,self.gray,self.laplacian,self.sobel,self.DoG,self.lthr,self.hist,self.contour,self.compose,self.entropy,self.garbor = None, None, None, None, None, None, None, None, None, None, None
+        self.initialize()
         if image is not None:
             self.bgr = image
             self.preprocess()
-        self.height,self.width = 0,0
-        self.contours = []
-        self.chars = []
     
     def initialize(self):
         self.bgr,self.gray,self.laplacian,self.sobel,self.DoG,self.lthr,self.hist,self.contour,self.compose,self.entropy, self.garbor = None, None, None, None, None, None, None, None, None, None, None
+        self.height,self.width = 0,0
+        self.contours = []
+        self.chars = []
+        self.strings = []
     
     def preprocess(self):
         gray = cv2.cvtColor(self.bgr,cv2.COLOR_BGR2GRAY)
@@ -211,8 +133,8 @@ class VIN(object):
         #self.entropy = Entropy(gray)
         #self.garbor = Garbor(gray)
         self.DoG = DoG(gray)
-        self.lthr = cv2.adaptiveThreshold(self.laplacian, 255.0, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, ADAPTIVE_THRESH_BLOCK_SIZE, ADAPTIVE_THRESH_WEIGHT)
-        self.tophat = 255 - TopHat(gray)
+        self.lthr = AdaptiveThreshold(self.laplacian)
+        #self.tophat = 255 - TopHat(gray)
         #tophatblackhat(gray)
         masks = []
         #masks.append(self.tophat)
@@ -238,7 +160,7 @@ class VIN(object):
         h, w = self.contour.shape
         #chars = self.chars
         chars = self.sortchars()
-        VIN.drawChars((self.height,self.width),"sorting",chars,isdebug=isdebug)
+        drawChars((self.height,self.width),"sorting",chars,isdebug=isdebug)
         strings = []
         string = String()
         string.push(chars[0])                
@@ -278,7 +200,7 @@ class VIN(object):
                 string = strings[len(strings)-i-1]
                 self.strings.append(string)
                 if isdebug:
-                    VIN.drawChars((self.height,self.width),"third-filtering",string.getitems(),isdebug=isdebug)
+                    drawChars((self.height,self.width),"third-filtering",string.getitems(),isdebug=isdebug)
                     #roi = String.extractROI(self.bgr,string)
                     #showResult("roi",roi.imgPlate)
             else:
@@ -287,13 +209,13 @@ class VIN(object):
 
     def sizefiltering(self,isdebug=False):
         #
-        self.chars = VIN.find_possible_chars(self.contours,True)
+        self.chars = find_possible_chars(self.contours,True)
         #
-        self.sizemap()
+        self.shistogramfiltering()
         if isdebug:
-            VIN.drawChars((self.height,self.width),"first-filtering",self.chars,isdebug=isdebug)
+            drawChars((self.height,self.width),"first-filtering",self.chars,isdebug=isdebug)
   
-    def sizemap(self):
+    def shistogramfiltering(self):
         histogram = {}
         for char in self.chars:
             char.logsize = round(math.log(char.brH,2))
@@ -330,23 +252,7 @@ class VIN(object):
             chars_.append(chars[i])
         self.chars =  chars_
         if isdebug:
-            VIN.drawChars((self.height,self.width),"inner-filtering",self.chars,isdebug=isdebug)
-
-    @staticmethod
-    def innerfiltering(chars,isdebug=False):
-        chars_ = []
-        for i,char in enumerate(chars):
-            [x, y, w, h] = char.brX,char.brY,char.brW,char.brH
-            isinner = False
-            for j,char_ in enumerate(chars):
-                [xx, yy, ww, hh] = char_.brX,char_.brY,char_.brW,char_.brH
-                if x > xx and y > yy and (x+w) < (xx+ww) and (y+h) < (yy+hh):
-                    isinner = True
-            if isinner:
-                continue
-            chars_.append(char)
-                  
-        return chars_
+            drawChars((self.height,self.width),"inner-filtering",self.chars,isdebug=isdebug)
               
     def makeup(self,isdebug=False):
         string_ = []
@@ -378,7 +284,7 @@ class VIN(object):
         strings_.sort(key=lambda string:string.confidence,reverse=True)
         if isdebug:
             for string in strings_:
-                VIN.drawChars((self.height,self.width),"final",string.getitems(),isdebug=isdebug)        
+                drawChars((self.height,self.width),"final",string.getitems(),isdebug=isdebug)        
         return strings_
 
     @staticmethod
@@ -386,7 +292,8 @@ class VIN(object):
         if len(strings) == 0:
             return None
         string = strings[0]
-        print VIN.string2txt(image,string)
+        print string2txt(image,string)
+        #print string.confidence,string.density,string.meaningfulcharcount
         if string.isAcceptable() is False or isMandatory:
             strings = String.filtering_by_ocr(strings)
         strings.sort(key=lambda string:string.confidence + 0.06 * string.meaningfulcharcount + string.density,reverse=True)
@@ -402,48 +309,15 @@ class VIN(object):
         strings_ = VIN.ocrchecking(self.bgr,strings_,False)
         #
         if strings_ is not None:
-            if True:           
+            if isdebug:           
                 for string in strings_:
                     String.mark(self.bgr,string)
-                    #VIN.drawChars((self.height,self.width),"final",string.getitems(),isdebug=isdebug)
-                    print string.result
+                    break
+                    #drawChars((self.height,self.width),"final",string.getitems(),isdebug=isdebug)
+                    #print string.result
             return True
         else:
             return False
-
-    @staticmethod    
-    def string2txt(image,string):
-        roi = String.extractROI(image, string, False)
-        bgr = roi.cropped
-        gray = cv2.cvtColor(bgr,cv2.COLOR_BGR2GRAY)
-        laplacian = Laplacian(gray)
-        lthr = cv2.adaptiveThreshold(laplacian, 255.0, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, ADAPTIVE_THRESH_BLOCK_SIZE, ADAPTIVE_THRESH_WEIGHT)
-        dog = DoG(gray)
-        compose = maskize(lthr,dog)
-        ###
-        img_contour, contours, npaHierarchy = cv2.findContours(compose, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        cv2.drawContours(img_contour, contours, -1, SCALAR_WHITE, -1)
-        chars = VIN.find_possible_chars(contours,False)
-        chars = VIN.innerfiltering(chars)
-        chars.sort(key=lambda char:char.brX)
-        img_char = VIN.drawChars(gray.shape,"size-filtering",chars)
-        compose = maskize(img_contour,255-img_char)
-        showResult("compose",compose)
-        ### OCR
-        ocrresult,count = string.ocr2(compose,chars)
-        string.meaningfulcharcount = count
-        return ocrresult
-        
-    def TestOCR(self,isdebug=False):
-        strings_ = self.makeup(isdebug=isdebug)
-        for string in strings_:
-            ocrresult,count = VIN.string2txt(self.bgr,string)
-            
-    def TestSegmentation(self,isdebug=False):
-        strings_ = self.makeup(isdebug=isdebug)
-        String.mark(self.bgr,strings_)
-        for string in strings_:
-            String.makesegments(self.bgr,string)
         
     def resize(self,img):
         h,w,c = img.shape
@@ -459,23 +333,17 @@ class VIN(object):
         self.height,self.width,c = self.bgr.shape
         
     def process(self,img=None):
-        start = time.time()
+        #start = time.time()
         if img is not None:
             self.resize(img)
             self.preprocess()
             self.showAll()
-        # size filtering
-        self.sizefiltering()
-        # inner filtering
-        self.chars = self.innerfiltering(self.chars)
-        #
-        #self.noisefiltering()
-        # distance filtering
-        self.posfiltering()
-        # makeup and finalize
-        isFound = self.finalize()
-        #self.doagain4eachstring()
-        print time.time() - start
+        self.sizefiltering()#sizefiltering
+        self.chars = innerfiltering(self.chars)#innerfiltering
+        #self.noisefiltering()#noisefiltering
+        self.posfiltering(True)#distance filtering
+        isFound = self.finalize()#makingup and finalizeing
+        #print time.time() - start
         return isFound
         
     def setcontours(self,isdebug=False):
@@ -484,57 +352,32 @@ class VIN(object):
             cv2.drawContours(self.img_contour, self.contours, -1, SCALAR_WHITE, -1)
             print "\nstep 2 - contours = " + str(len(self.contours))
             showResult("contours",self.img_contour)
-        
-    @staticmethod        
-    def find_possible_chars(contours,
-                            isdebug=False):
-        #
-        filtered = []                # this will be the return value
-        count = 0
-        for i in range(0, len(contours)):                       # for each contour                  
-            contour = Contour(contours[i])   
-            if contour.checkIfPossibleChar():                   # if contour is a possible char, note this does not compare to other chars (yet) . . .
-                count += 1                                      # increment count of possible chars
-                filtered.append(contour)                        # and add to list of possible chars   
+
+    '''
+    def TestOCR(self,isdebug=False):
+        strings_ = self.makeup(isdebug=isdebug)
+        for string in strings_:
+            ocrresult,count = string2txt(self.bgr,string)
             
-        return filtered
-
-    @staticmethod    
-    def drawChars(shape,
-                  title,
-                  chars,
-                  colr=SCALAR_WHITE,
-                  isdebug=False):
-        h,w =  shape
-        ratio = 1
-        vis = np.zeros((h,w*ratio,3), np.uint8)
-        img_contours = np.zeros((shape), np.uint8)
-    
-        for i,char in enumerate(chars):
-            cv2.drawContours(img_contours, [char.contour], -1, colr,-1)
-            if isdebug:
-                [x, y] = char.brX,char.brY
-                cv2.putText(vis,str(i),(x*ratio,y),cv2.FONT_HERSHEY_COMPLEX_SMALL, 1,(255,128,128),1,cv2.LINE_AA)
-                contour = char.contour.copy()
-                contour[:,:,0] *= ratio
-                cv2.drawContours(vis, [contour], -1, colr,-1)
-        if isdebug:
-            showResult(title,vis)
-        return img_contours
-
+    def TestSegmentation(self,isdebug=False):
+        strings_ = self.makeup(isdebug=isdebug)
+        String.mark(self.bgr,strings_)
+        for string in strings_:
+            String.makesegments(self.bgr,string)
+    '''
 #http://jmgomez.me/a-fruit-image-classifier-with-python-and-simplecv/        
 ##### Test Variable
-dataset_path = "/media/ubuntu/Investigation/DataSet/Image/Classification/Insurance/Insurance/Tmp/VIN/"
+dataset_path = "/media/ubuntu/Investigation/DataSet/Image/Classification/Insurance/Insurance/Tmp/LP/"
 test_path = "/media/ubuntu/Investigation/DataSet/Image/Classification/Insurance/Tmp/VIN-scrapy/renamed/"
-filename = "95.jpg"
-fullpath = test_path + filename
+filename = "2.jpg"
+fullpath = dataset_path + filename
 
-lp = VIN()
+vin = VIN()
 
 if __name__ == "__main__":
     #main(cv2.imread(fullpath,0))
-    lp.initialize()
-    lp.process(img=cv2.imread(fullpath))
+    vin.initialize()
+    vin.process(img=cv2.imread(fullpath))
     #VIN.detect_by_gf(cv2.imread(fullpath))
     #VIN.detect_by_erfilter(img=cv2.imread(fullpath),isdebug=True)
     #VIN.detect_by_contour(img=cv2.imread(fullpath),isdebug=True)

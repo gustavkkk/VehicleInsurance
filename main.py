@@ -10,10 +10,8 @@ from preprocessing import ssd_vgg_preprocessing
 
 slim = tf.contrib.slim
 
-from detect_lp import detect_by_seg_gf,detect_by_gf,detect_by_probability
-
-from feature.colorspace import rgb2hsv,opencv2skimage,skimage2opencv
-from feature.bbox import cropImg_by_BBox,drawBBox,showResult,shiftBBoxes,masked
+from feature.colorspace import opencv2skimage#,skimage2opencv,rgb2hsv,
+from feature.bbox import cropImg_by_BBox,drawBBox,shiftBBoxes#,showResult,masked
 from detect_vehicle import VehicleDetector
 
 # TensorFlow session: grow memory when needed. TF, DO NOT USE ALL MY GPU MEMORY!!!
@@ -79,7 +77,7 @@ def detect(img,
 ###               
 sample_db_path = "./sample/"
 test_db_path = "/media/ubuntu/Investigation/DataSet/Image/Classification/Insurance/Insurance/Tmp/LP/"
-filename = "193.jpg"
+filename = "14.jpg"
 fullpath = test_db_path + filename
 ###
 # MSER
@@ -96,11 +94,12 @@ fullpath = test_db_path + filename
 # opencv Python tutorial
 #https://github.com/opencv/opencv/tree/master/samples/python
 from licenseplate import LicensePlate
-#from hyperlpr import pipline
+from detector import LicensePlateDetector
 ###
 import time
 
 lp = LicensePlate()
+lpdetector = LicensePlateDetector()
 
 def main():
     start=time.time()
@@ -114,19 +113,21 @@ def main():
         img_car = cropImg_by_BBox(image,bbox_car)
         # Detect License Plate
         start_detect_lp = time.time()
-        bboxes_lp,rois = detect_by_probability(img_car,False)
+        confidence,bboxes_lp,rois = lpdetector.process(img_car)
         print("detecting LP elapsed time: "+str(int((time.time() - start_detect_lp)*1000)/1000.0)+"s")
         # Check Result
         if bboxes_lp is not None:
             bboxes_lp_refined = shiftBBoxes(bbox_car,bboxes_lp)
-            drawBBox(image,bboxes_lp_refined,bbox_car,debug=False)
+            print "confidence:",confidence
+            drawBBox(image,bboxes_lp_refined,bbox_car,debug=True)
+            '''
             for roi in rois:
                 start_refine_lp = time.time()
-                lp.initialize()
                 lp.process(roi,isdebug=True)
                 print("refining LP elapsed time: "+str(int((time.time() - start_refine_lp)*1000)/1000.0)+"s")
                 #pipline.recognizeLP2(seg_blocks,mid)
                 print("confidence:"+str(lp.confidence*100)+"%")
+            '''
 
         else:
             drawBBox(image,None,bbox_car,debug=True)
@@ -135,6 +136,39 @@ def main():
 ##
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     
 '''
 from skimage.filters import (threshold_otsu, threshold_niblack,threshold_yen,threshold_li,

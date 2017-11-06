@@ -33,15 +33,8 @@ def contour2bbox(contour):
 
 def contour2fitline(contour):
     bbox =  contour2bbox(contour)
-    pt1,pt2,pt3,pt4,w,h = analyzeBBox(bbox)
-    pts = []
-    if w > h:
-        pts.append(pt3)
-        pts.append(pt4)
-    else:
-        pts.append(pt1)
-        pts.append(pt2)
-    [vx, vy, x, y] = cv2.fitLine(np.array(pts), cv2.DIST_HUBER, 0, 0.01, 0.01)
+    pt0_,pt1_,pt2_,pt3_,w,h,center,pt_left,pt_right,angle_degree = analyzeBBox(bbox)
+    [vx, vy, x, y] = cv2.fitLine(np.array([pt_left,pt_right]), cv2.DIST_HUBER, 0, 0.01, 0.01)
     return [vx, vy, x, y],bbox
     
 def contour2convex(contour):
@@ -58,7 +51,13 @@ def contour2convex(contour):
 # lp position = ratio * lp position
 def resizeBBoxes(bboxes,
                  ratio):
-    bboxes = np.array(bboxes,dtype=np.float64)#,dtype=np.float64)
+    #resize1
+    bboxes_ = []
+    for bbox in bboxes:
+        bbox = resizeBBox(bbox,ratio=1.3)
+        bboxes_.append(bbox)
+    #resize2
+    bboxes = np.array(bboxes_,dtype=np.float64)#,dtype=np.float64)
     bboxes *= ratio
     bboxes = np.int_(bboxes)
     bboxes = list(bboxes)#.tolist()
@@ -100,9 +99,40 @@ def analyzeBBox(bbox):
     pt2 = (int((bbox[1][0] + bbox[2][0]) / 2),int((bbox[1][1] + bbox[2][1]) / 2))
     pt3 = (int((bbox[0][0] + bbox[1][0]) / 2),int((bbox[0][1] + bbox[1][1]) / 2))
     pt4 = (int((bbox[2][0] + bbox[3][0]) / 2),int((bbox[2][1] + bbox[3][1]) / 2))
+    center= (int((pt1[0]+pt2[0])/2),int((pt1[1]+pt2[1])/2))
     w = np.linalg.norm(np.array(pt1)-np.array(pt2))
-    h = np.linalg.norm(np.array(pt3)-np.array(pt4))       
-    return pt1,pt2,pt3,pt4,w,h
+    h = np.linalg.norm(np.array(pt3)-np.array(pt4))
+    ###
+    if w < h:
+        tmp = w
+        w = h
+        h = tmp
+        if pt3[0] < pt4[0]:
+            pt_left = pt3
+            pt_right = pt4
+            [pt0_,pt3_] = [bbox[0],bbox[1]] if bbox[0][1] < bbox[1][1] else [bbox[1],bbox[0]]
+            [pt1_,pt2_] = [bbox[2],bbox[3]] if bbox[2][1] < bbox[3][1] else [bbox[3],bbox[2]]
+        else:
+            pt_left = pt4
+            pt_right = pt3
+            [pt0_,pt3_] = [bbox[2],bbox[3]] if bbox[2][1] < bbox[3][1] else [bbox[3],bbox[2]]
+            [pt1_,pt2_] = [bbox[0],bbox[1]] if bbox[0][1] < bbox[1][1] else [bbox[1],bbox[0]]
+    else:
+        if pt1[0] < pt2[0]:
+            pt_left = pt1
+            pt_right = pt2
+            [pt0_,pt3_] = [bbox[0],bbox[3]] if bbox[0][1] < bbox[3][1] else [bbox[3],bbox[0]]
+            [pt1_,pt2_] = [bbox[1],bbox[2]] if bbox[1][1] < bbox[2][1] else [bbox[2],bbox[1]]
+        else:
+            pt_left = pt2
+            pt_right = pt1
+            [pt0_,pt3_] = [bbox[1],bbox[2]] if bbox[1][1] < bbox[2][1] else [bbox[2],bbox[1]]
+            [pt1_,pt2_] = [bbox[0],bbox[3]] if bbox[0][1] < bbox[3][1] else [bbox[3],bbox[0]]
+            
+    angle_radian = math.atan(float(pt_right[1] - pt_left[1])/w)
+    angle_degree = angle_radian * (180.0 / math.pi)            
+    
+    return pt0_,pt1_,pt2_,pt3_,w,h,center,pt_left,pt_right,angle_degree
 
 def cropImg_by_BBox(img,
                     bbox):
@@ -111,46 +141,47 @@ def cropImg_by_BBox(img,
     return roi
 
 import math
+
+def refineBBox(bbox,innerbbox):
+    pt0_,pt1_,pt2_,pt3_,w,h,center,pt_left,pt_right,angle=analyzeBBox(bbox)
+    [x0y0,x1y0,x1y1,x0y1] = innerbbox
+    ordered = [pt0_,pt1_,pt2_,pt3_]
+    bbox_ = []
+    #print "refineBBox:innerbbox",innerbbox
+    pt = ordered[0]
+    angle *= -1
+    for i in range(4):
+        pt_ = innerbbox[i]
+        dist = np.linalg.norm(np.array(pt_))
+        radian_ = math.acos(float(pt_[0])/dist)
+        angle_ = radian_ * (180.0 / math.pi)
+        delta_angle = angle_ - angle
+            
+        delta_x = dist*math.cos(delta_angle*math.pi/180)
+        delta_y = dist*math.sin(delta_angle*math.pi/180)
+        bbox_.append([pt[0]+int(delta_x),pt[1]+int(delta_y)])
+        
+    return np.array(bbox_)
+
 def cropImg_by_BBox2(img,
                     bbox,
                     isdebug=False):
     tmp = img.copy()
     roi = tmp[bbox[0][1]:bbox[3][1],bbox[0][0]:bbox[1][0]]
-    pt1,pt2,pt3,pt4,w,h=analyzeBBox(bbox)
-    center= (int((pt1[0]+pt2[0])/2),int((pt1[1]+pt2[1])/2))
-
-    if w < h:
-        tmp = w
-        w = h
-        h = tmp
-        if pt3[0] < pt4[0]:
-            pt_left = pt3
-            pt_right = pt4
-        else:
-            pt_left = pt4
-            pt_right = pt3            
-    else:
-        if pt1[0] < pt2[0]:
-            pt_left = pt1
-            pt_right = pt2
-        else:
-            pt_left = pt2
-            pt_right = pt1
+    pt0_,pt1_,pt2_,pt3_,w,h,center,pt_left,pt_right,angle_degree=analyzeBBox(bbox)
     
     if isdebug:
         print("cropImg_by_BBox2:",pt_left,pt_right)
         img = cv2.line(img,pt_left,pt_right,(0,244,222),2)
         showResult("cropImg_by_BBox2-debug",img)
-    # calculate correction angle of plate region
-    angle_radian = math.atan(float(pt_right[1] - pt_left[1])/w)
-    angle_degree = angle_radian * (180.0 / math.pi)
+
     # get the rotation matrix for our calculated correction angle
     rmatrix = cv2.getRotationMatrix2D(tuple(center), angle_degree, 1.0)
     height, width, numChannels = img.shape      # unpack original image width and height
     rotated = cv2.warpAffine(img, rmatrix, (width, height))       # rotate the entire image
     # Resize Cropping
-    w *= 1.3
-    h *= 1.3
+    #w *= 1.3
+    #h *= 1.3
     # Crop
     roi = cv2.getRectSubPix(rotated, (int(w), int(h)), tuple(center))
 
@@ -166,7 +197,6 @@ def BBoxes2ROIs(img,bboxes):
 
 def ContourFiltering(mask,
                      contours,
-                     model='LP',
                      debug=False):
     height,width = mask.shape
     bboxes = []
@@ -182,23 +212,18 @@ def ContourFiltering(mask,
         w_by_h = float(w) / h
         aspect_ratio = w_by_h if w_by_h < 1 else 1/w_by_h
         roi_by_origin = float(w * h) / (height*width)
-        for case in switch(model):
-            if case('LP'):
-                if debug:
-                    print("ContourFiltering,approx,aspect_ratio,roi_by_origin:\n",
-                          approx,
-                          aspect_ratio,
-                          roi_by_origin)
-        
-                if len(approx) > 3 and len(approx) < 7\
-                    and roi_by_origin > 0.004 and roi_by_origin < 0.15\
-                    and aspect_ratio < 0.75 and aspect_ratio > 0.25:
-                    #estimateColr(img,boundingRect):
-                    bboxes.append(bbox)#contour2convex(contour))#bboxes.append(bbox)
-                break
-            if case('VIN'):
-                bboxes.append(bbox)
-                break
+        if debug:
+            print("ContourFiltering,approx,aspect_ratio,roi_by_origin:\n",
+                  approx,
+                  aspect_ratio,
+                  roi_by_origin)
+
+        if len(approx) > 3 and len(approx) < 7\
+            and 0.0022 < roi_by_origin and roi_by_origin < 0.15\
+            and 0.2 < aspect_ratio and aspect_ratio < 0.75:
+            #estimateColr(img,boundingRect):
+            bboxes.append(bbox)#contour2convex(contour))#bboxes.append(bbox)
+            
     return bboxes
 
 def removeBoundary(mask):
@@ -228,16 +253,18 @@ def split(image,
     imgs.append(yellow)
     return imgs
 
-def mask2contour(mask,
-                 model="LP",
-                 debug=False):
-    #
+def close(binary):
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT,(5,5))
-    closing=cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    return cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+
+def mask2contour(mask,
+                 isdebug=False):
+    #
+    closing=close(mask)
     # Find Contours
     imgContours,contours,hierarchy = cv2.findContours(closing, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE) 
     # Filter Contours
-    bboxes = ContourFiltering(mask,contours,model,debug)
+    bboxes = ContourFiltering(mask,contours,isdebug)
     
     return bboxes
 
@@ -300,7 +327,6 @@ def mimicHandwrite(mask,
     binary[binary>0]=1
     skeleton = img_as_ubyte(morphology.skeletonize_3d(binary))#skeletonize(binary))
     skeleton[skeleton > 0] = 255
-    dilate = cv2.dilate(skeleton,(3,3))
     handwrite[mask>0] = 255
     #bg mark
     bboxes = mask2contour(mask)
@@ -336,34 +362,21 @@ def masked(img,
 
 def findBBox(img,
              colr,
-             model='LP',
-             debug=False):
+             isdebug=False):
     if len(colr.shape) == 3:
         # colr mask
         masks = split(colr)
         bboxes = []
         for mask in masks:
-            #removeBoundary(mask)
-            #masked(img,mask,True)
-            #handwrite = mimicHandwrite(mask)
-            #if handwrite is not None:
-            #    grabcut(img,handwrite)
-            if debug:
-                showResult("findBBox:mask",mask)
-            
+            if isdebug:
+                showResult("findBBox:mask",mask)        
             bboxes += mask2contour(mask)
     else:
         mask = colr
         removeBoundary(mask)
-        #masked(img,mask)
-        #dilate = cv2.dilate(mask,(3,3),iterations=2)
-        #erode = cv2.erode(dilate,(3,3),iterations=2)
-        #handwrite = mimicHandwrite(mask)
-        #if handwrite is not None:
-        #    grabcut(img,handwrite)
-        if debug:
+        if isdebug:
             showResult("findBBox:mask",mask)
-        bboxes = mask2contour(mask)
+        bboxes = mask2contour(mask,isdebug)
         
     if len(bboxes) == 0:
         return None
@@ -391,11 +404,8 @@ def drawBBox(img,
         cv2.drawContours(out,[bbox],-1,bxcolor2,2)     
         # Direction Line ?x,y?y,x
         if drawmline:
-            pt1,pt2,pt3,pt4,w,h = analyzeBBox(bbox)
-            if w > h:
-                out = cv2.line(out,pt1,pt2,linecolor,2)
-            else:
-                out = cv2.line(out,pt3,pt4,linecolor,2)
+            pt0_,pt1_,pt2_,pt3_,w,h,center,pt_left,pt_right,angle_degree = analyzeBBox(bbox)
+            out = cv2.line(out,pt_left,pt_right,linecolor,2)
     if debug:
         showResult("drawBBox:result",out)
     return out

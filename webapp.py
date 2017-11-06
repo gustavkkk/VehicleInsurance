@@ -32,14 +32,15 @@ import time
 import cv2
 import numpy as np
 #from os.path import basename
-from detect_lp import detect_by_seg_gf,detect_by_probability#,detect_by_gf
 
 from feature.colorspace import opencv2skimage#,rgb2hsv,skimage2opencv
 from feature.bbox import cropImg_by_BBox,drawBBox,shiftBBoxes#,showResult
 #from misc import pick_one_vehicle
-from detect_vehicle import VehicleDetector
+from quality import AnalyzeImageQuality
 from classify import Classifier
-from detect_vin import detect_by_contour
+from detector import LicensePlateDetector,VehicleDetector
+from vin import VIN
+from licenseplate import LicensePlate
 from detect_angle import detect_angle
 import html
 
@@ -47,15 +48,16 @@ from misc.switch import switch
 #from os import listdir
 from os.path import exists#,isfile, join
 
-from licenseplate import LicensePlate
-
 app = Flask(__name__)#, static_folder='static', static_url_path='')
 
 UPLOAD_FOLDER = 'uploads'
 WEBFILE_FOLDER = 'webfiles'
+app.qualityanalyzer = AnalyzeImageQuality()
 app.classifier = Classifier()
 app.detector = VehicleDetector()
+app.licenseplatedetector = LicensePlateDetector()
 app.licenseplate = LicensePlate()
+app.vehicleidentifier = VIN()
 app.results = []
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -98,76 +100,89 @@ def upload_file():
             start=time.time()
             # Load Image
             image = cv2.imread(file_path)
-            # Determine what this is
-            thisiswhat = app.classifier.run(file_path)
-
-            for case in switch(thisiswhat):
-                app.results.append(filename + " :")
-                if case('lp'):
-                    app.results.append("   现场相片")
-                    # Detect Vehicle           
-                    bbox_car = app.detector.detect(opencv2skimage(image))#mpimg.imread(path)
-                    img_car = cropImg_by_BBox(image,bbox_car)
-                    if bbox_car is not None:
-                        app.results.append(r"车 : 有 ")
-                        # Detect License Plate
-                        bboxes_lp,rois = detect_by_probability(img_car)
-                        if bboxes_lp is not None:
-                            
-                            # Select LP with highest confidence
-                            confidences = []
-                            for index in range(len(rois)):
-                                app.licenseplate.initialize()
-                                app.licenseplate.process(rois[index])
-                                confidences.append([app.licenseplate.confidence,index])
-                            
-                            confidences = sorted(confidences,reverse=True)
-                            confidence = confidences[0][0]
-                            bbox_lp = bboxes_lp[confidences[0][1]]
-                            if confidence > 0.4:
-                                print confidence,bbox_lp
-                                #
-                                app.results.append(r"车牌 : 有")
-                                # Mark Image
-                                bbox_lp_refined = shiftBBoxes(bbox_car,[bbox_lp])
-                                markImg = drawBBox(image,[bbox_lp_refined],bbox_car)  
-                                #
-                                if confidence > 0.85:
-                                    app.results.append(r"车牌 : 全面")                                    
-                                    res,reps = detect_angle(image,bbox_lp_refined,bbox_car)
-                                    app.results.append(r"分析结果 : " + res)
-                                    for rep in reps:
-                                        app.results.append(rep)
+            # Quality Analyzing
+            app.qualityanalyzer.initialize()
+            fm,result,explanation = app.qualityanalyzer.process(image)
+            for case in switch(explanation):
+                if case('Normal'):
+                    # Determine what this is
+                    thisiswhat = app.classifier.run(file_path)
+        
+                    for case in switch(thisiswhat):
+                        app.results.append(filename + " :")
+                        if case('lp'):
+                            app.results.append("   现场相片")
+                            # Detect Vehicle           
+                            bbox_car = app.detector.detect(opencv2skimage(image))#mpimg.imread(path)
+                            img_car = cropImg_by_BBox(image,bbox_car)
+                            if bbox_car is not None:
+                                app.results.append(r"车 : 有 ")
+                                # Detect License Plate
+                                bboxes_lp,rois = app.licenseplatedetector.process(img_car)
+                                if bboxes_lp is not None:
+                                    
+                                    # Select LP with highest confidence
+                                    confidences = []
+                                    for index in range(len(rois)):
+                                        app.licenseplate.initialize()
+                                        app.licenseplate.process(rois[index])
+                                        confidences.append([app.licenseplate.confidence,index])
+                                    
+                                    confidences = sorted(confidences,reverse=True)
+                                    confidence = confidences[0][0]
+                                    bbox_lp = bboxes_lp[confidences[0][1]]
+                                    if confidence > 0.4:
+                                        print confidence,bbox_lp
+                                        #
+                                        app.results.append(r"车牌 : 有")
+                                        # Mark Image
+                                        bbox_lp_refined = shiftBBoxes(bbox_car,[bbox_lp])
+                                        markImg = drawBBox(image,[bbox_lp_refined],bbox_car)  
+                                        #
+                                        if confidence > 0.85:
+                                            app.results.append(r"车牌 : 全面")                                    
+                                            res,reps = detect_angle(image,bbox_lp_refined,bbox_car)
+                                            app.results.append(r"分析结果 : " + res)
+                                            for rep in reps:
+                                                app.results.append(rep)
+                                        else:
+                                            app.results.append(r"分析结果 : 没通过")
+                                            app.results.append(r"车牌 : 不全面")
+        
+                                    else:
+                                        app.results.append(r"车牌 : 没有")
+                                        markImg = drawBBox(image,None,bbox_car)
                                 else:
-                                    app.results.append(r"分析结果 : 没通过")
                                     app.results.append(r"车牌 : 不全面")
-
+                                    markImg = drawBBox(image,None,bbox_car)
+                                cv2.imwrite(file_path,markImg)
                             else:
-                                app.results.append(r"车牌 : 没有")
-                                markImg = drawBBox(image,None,bbox_car)
-                        else:
-                            app.results.append(r"车牌 : 没有")
-                            markImg = drawBBox(image,None,bbox_car)
-                        cv2.imwrite(file_path,markImg)
-                    else:
-                        app.results.append(r"车 : 没有")
+                                app.results.append(r"车 : 不全面")
+                            break
+                        if case('vin'):
+                            app.results.append(r"   车架号")
+                            app.vehicleidentifier.initialize()
+                            if app.vehicleidentifier.process(image):
+                                app.results.append(r"车架号 : 有")
+                            else:
+                                app.results.append(r"车架号 : 没有")
+                            break
+                        if case():
+                            app.results.append(r"   没意思")
+                            break
                     break
-                if case('vin'):
-                    app.results.append(r"   车架号")
-                    bboxes_vin = detect_by_contour(image)
-                    if bboxes_vin is not None:
-                        app.results.append(r"车架号 : 有")
-                        print(bboxes_vin)
-                        markImg = drawBBox(image,bboxes_vin,None)
-                        cv2.imwrite(file_path,markImg)
-                        
+                if case('Blurry'):
+                    app.results.append(r"   模糊")
                     break
-                if case():
-                    app.results.append(r"   没意思")
-                    break                           
+                if case('Reflective'):
+                    app.results.append(r"   不清楚")
+                    break
+                if case('Too Reflective'):
+                    app.results.append(r"   曝光过度")
+                    break
             end=time.time()
-            elapsedtime = int((end-start)*1000)
-            app.results.append(r"经过时间 : " + str(elapsedtime) + "ms ")
+            elapsedtime = end-start
+            app.results.append(r"经过时间 : " + str(int(elapsedtime*1000)/1000.0) + "s ")
             #######################
             #######################
             # Save Image and Result

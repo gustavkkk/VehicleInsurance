@@ -11,11 +11,11 @@ import numpy as np
 import math
 import statistics
 import scipy
+
 from feature.bbox import showResult
 from feature.colorspace import checkBlue,checkYellow,rgb2hsv
-
-ADAPTIVE_THRESH_BLOCK_SIZE = 19
-ADAPTIVE_THRESH_WEIGHT = 9
+from feature.space import Laplacian,DoG,AdaptiveThreshold,maskize,TopHat
+#from misc.preprocess import maximizeContrast as icontrast
 
 SCALAR_BLACK = (0.0, 0.0, 0.0)
 SCALAR_WHITE = (255.0, 255.0, 255.0)
@@ -37,6 +37,7 @@ PLATE_SIZE_BIG_WIDTH = 160
 PLATE_SIZE_BIG_HEIGHT = 44
 PLATE_SIZE_SMALL_WIDTH = 136
 PLATE_SIZE_SMALL_HEIGHT = 36
+PLATE_ROTATE_MARGIN = 30
 
 SMALL_GAP_MAXIMUM = 20
 BIG_GAP_MAXIMUM = 28
@@ -60,32 +61,16 @@ def linreg(X, Y):
     det = Sxx * N - Sx * Sx
     return (Sxy * N - Sy * Sx)/det, (Sxx * Sy - Sx * Sxy)/det
 
+colrs = {0:"Blue",1:"Yellow"}
+
 class LicensePlate(object):
     
     def __init__(self,image=None):
-        self.bgr,self.gray,self.denoised,self.laplacian,self.thr,self.DoG,self.returnImg,self.compose = None, None, None, None, None, None, None, None
-        self.height,self.width = PLATE_SIZE_BIG_HEIGHT,PLATE_SIZE_BIG_WIDTH
+        self.initialize()
         if image is not None:
+            self.originheight,self.originwidth = image.shape[:2]
             self.bgr = cv2.resize(image, (self.width, self.height),interpolation = cv2.INTER_CUBIC)
             self.preprocess()
-        #
-        self.contours = []
-        self.charwidth = 0.0
-        self.charheight = 0.0
-        self.charangle = 0.0
-        self.chargaps = []
-        self.charwidths = []
-        self.charheights = []
-        self.charcenters = []
-        self.charbiggap = 0
-        self.charsmallgap = 0
-        self.charleftmost = 0
-        self.charrightmost = 0
-        self.charsegpoints = []
-        #
-        self.colr = 0#blue:1 or yellow:2
-        self.segImgs = []
-        self.confidence = 0.0
 
     def initialize(self):
         self.bgr,self.gray,self.denoised,self.laplacian,self.thr,self.DoG,self.returnImg,self.compose = None, None, None, None, None, None, None, None
@@ -107,63 +92,42 @@ class LicensePlate(object):
         self.colr = 0#blue:1 or yellow:2
         self.segImgs = []
         self.confidence = 0.0
-        
-    def preprocess(self):
-        self.gray = cv2.cvtColor(self.bgr,cv2.COLOR_BGR2GRAY)
-        # DOG
-        equalized_image = cv2.equalizeHist(self.gray)
-        imgb1 = cv2.GaussianBlur(equalized_image, (11, 11), 0)
-        imgb2 = cv2.GaussianBlur(equalized_image, (31, 31), 0)
-        self.DoG = imgb1 - imgb2#Difference of Gaussians
-        # Laplacian
-        self.denoised = cv2.GaussianBlur(self.gray,(5,5),0)
-        laplacian = cv2.Laplacian(self.denoised,cv2.CV_64F, ksize = 3,scale = 2,delta = 1)
-        laplacian -= np.amin(laplacian)
-        laplacian = laplacian * 255 / (np.amax(laplacian) - np.amin(laplacian))
-        laplacian[laplacian>255]=255
-        laplacian = laplacian.astype('uint8')
-        self.laplacian = laplacian
-        # Threshold
-        self.thr = cv2.adaptiveThreshold(self.laplacian, 255.0, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, ADAPTIVE_THRESH_BLOCK_SIZE, ADAPTIVE_THRESH_WEIGHT)        
-        self.thr = self.maskimg(self.thr,self.DoG)
         #
+        self.mode = "Blue"
+        #
+        self.x1y1,self.x0y1,self.x1y0, self.x0y0 =0,0,0,0
+        
+    def preprocess(self,mode="Blue"):
+        gray = cv2.cvtColor(self.bgr,cv2.COLOR_BGR2GRAY)
+        if mode == "Blue":
+            self.mode = "Blue"
+            self.gray = gray#icontrast(gray)#equalized_image = cv2.equalizeHist(self.gray)
+        else:
+            self.mode = "Yellow"
+            self.gray = 255 - gray
+        self.DoG = DoG(self.gray)#Difference of Gaussians
+        self.laplacian = Laplacian(self.gray,needcontrast=False)
+        self.thr = AdaptiveThreshold(self.laplacian)
+        self.thr = maskize(self.thr,self.DoG)
+        #self.tophat = 255 - TopHat(gray)
         #self.DoG = cv2.dilate(self.DoG,(3,3),iterations=3)
 
     def makeCompose(self):
         self.gray = cv2.cvtColor(self.resultimg,cv2.COLOR_BGR2GRAY)
-        if self.colr == 2:
+        if self.mode == "Yellow":
             self.gray = 255 - self.gray
-            self.thr = 255 - self.thr
         # DOG
         equalized_image = cv2.equalizeHist(self.gray)
-        imgb1 = cv2.GaussianBlur(equalized_image, (11, 11), 0)
-        imgb2 = cv2.GaussianBlur(equalized_image, (31, 31), 0)
-        self.DoG = imgb1 - imgb2#Difference of Gaussians
-        self.compose = self.maskimg(self.thr,self.DoG)
-        
-    @staticmethod
-    def close(binary):
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT,(5,5))
-        closing=cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
-        return closing
-        
-    @staticmethod
-    def maskimg(img,mask):
-        mask_ = mask.copy()
-        mask_[mask_>128] = 0
-        mask_[mask<=128] = 1
-        if len(img.shape) > 2:
-            masked = img*mask_[:,:,np.newaxis]
-        else:
-            masked = img*mask_
-        return masked
-        
+        self.DoG = DoG(equalized_image)#Difference of Gaussians
+        self.compose = maskize(self.thr,self.DoG)
+               
     def showAll(self):
-        showResult("roi",self.bgr)  
+        showResult("roi",self.bgr)
         showResult("gray",self.gray)        
-        showResult("laplacian",self.laplacian)     
-        showResult("thr",self.thr)
+        showResult("laplacian",self.laplacian)
         showResult("DoG",self.DoG)
+        showResult("thr",self.thr)
+        #showResult("tophat",self.tophat)
 
     def debug(self,img,xs):
         tmp = img.copy()
@@ -218,31 +182,38 @@ class LicensePlate(object):
 
     def filtering_contours(self,isdebug=False):
         #first filtering
-        self.first_filtering(isdebug=isdebug)
+        if self.first_filtering(isdebug=isdebug) is None:
+            return False
         if isdebug:
             self.drawChars("first-filtering",isdebug=isdebug)
         #second filtering
-        self.second_filtering()
+        if self.second_filtering() is None:
+            return False
         if isdebug:
             self.drawChars("second-filtering",isdebug=isdebug)
         #third filtering including sorting contours by x position
-        self.third_filtering()
+        if self.third_filtering() is None:
+            return False
         if isdebug:
-            self.drawChars("third-filtering",isdebug=isdebug)        
+            self.drawChars("third-filtering",isdebug=isdebug)
+        return True
         
     def process(self,
                 roi=None,
+                mode="Blue",
                 isdebug=False):
-        #
+        self.initialize()
         if roi is not None:
+            self.originheight,self.originwidth = roi.shape[:2]
             self.bgr = cv2.resize(roi, (self.width, self.height),interpolation = cv2.INTER_CUBIC)
-            self.preprocess()
+            self.preprocess(mode=mode)
         #
         if isdebug:
             self.showAll()
             
         # filtering contours
-        self.filtering_contours(isdebug=isdebug)
+        if self.filtering_contours(isdebug=isdebug) is False:
+            return 0.0
         #
         #https://namkeenman.wordpress.com/2015/12/18/open-cv-determine-angle-of-rotatedrect-minarearect/
         #https://docs.opencv.org/2.4/modules/core/doc/basic_structures.html?highlight=rotatedrect#RotatedRect::RotatedRect()
@@ -256,7 +227,7 @@ class LicensePlate(object):
         # crop and warp, then segment
         self.correctImg(isdebug=isdebug)    
         # detect colr
-        self.detectcolr()
+        #self.detectcolr()
         # makecompose
         self.makeCompose()
         # makesegments
@@ -316,6 +287,9 @@ class LicensePlate(object):
                 
         if len(widths) == len(gaps):
             gaps.pop()
+
+        if len(contours) < 2:
+            return None
             
         self.contours = contours
         self.chargaps = gaps
@@ -372,13 +346,16 @@ class LicensePlate(object):
         char_count_present =  round(float(rightmost-leftmost-biggap) / smallgap) + 2 if isbgFound else\
                               round(float(rightmost-leftmost) / smallgap) + 1
         char_count_present = int(max(char_count_present,cur_contour_count))
-        while(char_count_present < EXPECTED_CHAR_NUMBER):            
+        #print "estimateLP:char_count_present",char_count_present
+        #char_count_present = 6 if char_count_present > 6 else char_count_present
+        while(char_count_present < EXPECTED_CHAR_NUMBER):
             if char_count_present == 6:
                 if a > 0:
                     leftmost -= smallergap
                 else:
                     leftmost -= max([width_leftmost,smallgap,self.charwidth])
                 centers.insert(0,leftmost)
+                char_count_present += 1
                 break
             else:
                 if isbgFound:
@@ -387,6 +364,7 @@ class LicensePlate(object):
                     for i in range(EXPECTED_CHAR_NUMBER - char_count_present - 1):
                         rightmost += smallgap
                         centers.append(rightmost)
+                        char_count_present += 1
                 else:
                     count = 0
                     if char_count_present != 5:
@@ -394,15 +372,30 @@ class LicensePlate(object):
                             count += 1
                             rightmost += smallgap
                             centers.insert(0,rightmost)
+                            char_count_present += 1
                         for i in range(EXPECTED_CHAR_NUMBER - count - char_count_present - 2):     
                             leftmost -= smallgap
                             centers.insert(0,leftmost)
+                            char_count_present += 1
                     leftmost -= biggap
                     centers.insert(0,leftmost)
+                    char_count_present += 1
                     leftmost -= smallgap
                     centers.insert(0,leftmost)
+                    char_count_present += 1
                 break 
-        
+        while(len(centers) < EXPECTED_CHAR_NUMBER):
+            if char_count_present == EXPECTED_CHAR_NUMBER and len(centers) == (EXPECTED_CHAR_NUMBER-1):
+                if self.chargaps[0] < smallergap*1.7:
+                    if a > 0:
+                        leftmost -= smallergap
+                    else:
+                        leftmost -= max([width_leftmost,smallgap,self.charwidth])
+                    centers.insert(0,leftmost)
+                else:
+                    centers.insert(1,leftmost+smallergap)
+            break
+                
         ratio = 1.85 + 4 * abs(math.cos((self.charangle/180.0) * math.pi))
         leftmost = int(leftmost-width_leftmost/ratio) if a < 0 else int(leftmost-smallgap/ratio)
         rightmost = int(rightmost+width_rightmost/ratio) if a > 0 else int(rightmost+smallgap/ratio)             
@@ -448,6 +441,9 @@ class LicensePlate(object):
                 cwidths.append(w)
                 cheights.append(h)
 
+        if len(cwidths) < 2:
+            return None
+        
         self.charheight = statistics.median_high(cheights)
         self.charwidth = statistics.median_high(cwidths)
         if isdebug:
@@ -490,6 +486,9 @@ class LicensePlate(object):
             if isinner:
                 continue
             contours.append(contour)        
+
+        if len(contours) < 2:
+            return None
         #                
         self.contours = contours
         # delete all duplicate angles
@@ -569,7 +568,8 @@ class LicensePlate(object):
                 roi = img[:,start:end,:]
                 
             self.segImgs.append(roi)
-            #showResult("roi",roi)        
+            #showResult("roi",roi)
+
     @staticmethod
     def letterornot(img):
         h,w = img.shape[:2]
@@ -594,7 +594,19 @@ class LicensePlate(object):
             confidence = min(1.0,confidence)
             sum_+= confidence
         self.confidence = int(sum_/EXPECTED_CHAR_NUMBER*1000)/1000.0
-        
+
+    def refineROI(self,pts):
+        [x1y1,x0y1,x1y0, x0y0] = pts
+        xratio = float(self.originwidth)/self.width
+        yratio = float(self.originheight)/self.height
+        self.x0y0 = [x0y0[0]*xratio,(x0y0[1] - PLATE_ROTATE_MARGIN)*yratio]
+        self.x1y0 = [x1y0[0]*xratio,(x1y0[1] - PLATE_ROTATE_MARGIN)*yratio]
+        self.x0y1 = [x0y1[0]*xratio,(x0y1[1] - PLATE_ROTATE_MARGIN)*yratio]
+        self.x1y1 = [x1y1[0]*xratio,(x1y1[1] - PLATE_ROTATE_MARGIN)*yratio]
+
+    def getRefinedROI(self):
+        return [self.x0y0,self.x1y0,self.x1y1,self.x0y1]
+    
     def correctImg(self,
                    isdebug=False):
 
@@ -614,8 +626,8 @@ class LicensePlate(object):
         #
         leftx,rightx = self.charleftmost,self.charrightmost
         #
-        bgr = cv2.copyMakeBorder(self.bgr,30,30,0,0,cv2.BORDER_REPLICATE)
-        thr = cv2.copyMakeBorder(self.thr,30,30,0,0,cv2.BORDER_REPLICATE)
+        bgr = cv2.copyMakeBorder(self.bgr,PLATE_ROTATE_MARGIN,PLATE_ROTATE_MARGIN,0,0,cv2.BORDER_REPLICATE)
+        thr = cv2.copyMakeBorder(self.thr,PLATE_ROTATE_MARGIN,PLATE_ROTATE_MARGIN,0,0,cv2.BORDER_REPLICATE)
         #contourimg
         rows,cols = bgr.shape[:2]
         leftyB, rightyB = self.fitLine_ransac(np.array(line_lower),leftx,rightx,2)
@@ -639,6 +651,7 @@ class LicensePlate(object):
             x0y0 = [leftx - leftDelta/2, leftyU]
             pts_map1  = np.float32([x1y1,x0y1,x1y0, x0y0])                   
  
+        self.refineROI([x1y1,x0y1,x1y0, x0y0])
         x1y1 = [PLATE_SIZE_BIG_WIDTH,PLATE_SIZE_BIG_HEIGHT]
         x1y0 = [PLATE_SIZE_BIG_WIDTH,0]
         x0y1 = [0,PLATE_SIZE_BIG_HEIGHT]
@@ -648,6 +661,7 @@ class LicensePlate(object):
         mat = cv2.getPerspectiveTransform(pts_map1,pts_map2)
         #
         self.resultimg = cv2.warpPerspective(bgr,mat,(PLATE_SIZE_BIG_WIDTH,PLATE_SIZE_BIG_HEIGHT))
+        showResult("fixed",self.resultimg)
         self.thr = cv2.warpPerspective(thr,mat,(PLATE_SIZE_BIG_WIDTH,PLATE_SIZE_BIG_HEIGHT))
                
     @staticmethod
