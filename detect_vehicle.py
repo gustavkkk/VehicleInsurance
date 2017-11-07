@@ -20,6 +20,8 @@ from nets import ssd_vgg_300, np_methods#, ssd_common, np_methods
 from preprocessing import ssd_vgg_preprocessing
 #from notebooks import visualization
 
+MINIMUM_VEHICLE_RECT = 30000
+
 class VehicleDetector(object):
     def __init__(self, params=None):    
         # TensorFlow session: grow memory when needed. TF, DO NOT USE ALL MY GPU MEMORY!!!
@@ -131,8 +133,8 @@ class VehicleDetector(object):
         for i,rclass in enumerate(rclasses):
             if rclass == 7 and rscores[i]>0.5:
                 bbox = VehicleDetector.rbbox2bbox(img,rbboxes[i])
-                pt1,pt2,pt3,pt4,w,h = analyzeBBox(bbox)
-                if w*h > size:
+                pt0_,pt1_,pt2_,pt3_,w,h,center,pt_left,pt_right,angle_degrees = analyzeBBox(bbox)
+                if w*h > size and w*h>30000:
                     selected = bbox
                     size = w*h
         return selected
@@ -145,7 +147,7 @@ class VehicleDetector(object):
             if rclass == 7 and rscores[i]>0.5:
                 bbox = VehicleDetector.rbbox2bbox(img,rbboxes[i])
                 bboxes.append(rbboxes[i])
-                pt1,pt2,pt3,pt4,w,h = analyzeBBox(bbox)
+                pt0_,pt1_,pt2_,pt3_,w,h,center,pt_left,pt_right,angle_degree = analyzeBBox(bbox)
                 sizes.append(w*h)
         return bboxes
     

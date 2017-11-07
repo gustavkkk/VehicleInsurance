@@ -77,7 +77,7 @@ def detect(img,
 ###               
 sample_db_path = "./sample/"
 test_db_path = "/media/ubuntu/Investigation/DataSet/Image/Classification/Insurance/Insurance/Tmp/LP/"
-filename = "14.jpg"
+filename = "11.jpg"#74,87,29,37
 fullpath = test_db_path + filename
 ###
 # MSER
@@ -131,6 +131,15 @@ def main():
 
         else:
             drawBBox(image,None,bbox_car,debug=True)
+    else:
+        start_detect_lp = time.time()
+        confidence,bboxes_lp,rois = lpdetector.process(image)
+        print("detecting LP elapsed time: "+str(int((time.time() - start_detect_lp)*1000)/1000.0)+"s")
+        if bboxes_lp is not None:
+            print "confidence:",confidence
+            drawBBox(image,bboxes_lp,None,debug=True)
+        
+        
     print("total elapsed time: "+str(int((time.time() - start)*1000)/1000.0)+"s")
 
 ##

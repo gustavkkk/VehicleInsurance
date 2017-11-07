@@ -165,7 +165,7 @@ from misc.switch import switch
 from feature.extractfeature import refinedGoodFeatures,checkFeatures
 from feature.threshold import compositeThreshold
 from feature.bbox import findBBox,resizeBBoxes,resizeBBox,BBoxes2ROIs,showResult,close,refineBBox
-from feature.space import Laplacian,DoG,maskize,AdaptiveThreshold,tophatmask#,Normalize#,TopHat
+from feature.space import Laplacian,DoG,maskize,AdaptiveThreshold,tophatmask,NormalizeT#,NormalizeEx#,TopHat
 from misc.preprocess import maximizeContrast as icontrast
 
 def refine_gfimage(img,mask):
@@ -196,6 +196,9 @@ def colormask(image,
               isday=True,
               tgtcolr='Default',
               isdebug=False):
+    #
+    #image = NormalizeT(image)
+    #showResult("normalized",image)
     # blue mask + yellow mask
     hsv = cv2.cvtColor(image,cv2.COLOR_BGR2HSV)
     h,s,v = cv2.split(hsv)
@@ -224,9 +227,12 @@ def colormask(image,
         if case('Blue'):
             hue[blue2>0] = 0.5
             hue[blue1>0] = 1.0
+            hue[yellow>0] = 0.1
             break
         if case('Yellow'):
             hue[yellow>0] = 1.0
+            hue[blue2>0] = 0.1
+            hue[blue1>0] = 0.15
             break
         if case('Default'):
             hue[blue2>0] = 0.4
@@ -240,7 +246,8 @@ def colormask(image,
         mask=(hue*sat)**2
     #
     if isdebug:
-        showResult("colormask:mask",mask*255)
+        showResult("colormask:mask",mask)
+    
 
     return mask
 
@@ -265,7 +272,7 @@ colrs = {0:'Blue',1:'Yellow',2:'Default'}
 def mkfinalmasks(image,
                 gf_image=None,
                 isday=True,
-                isdebug=True):
+                isdebug=False):
     masks = []
     regmask = regionmask(image)
     for i in range(2):
@@ -329,7 +336,7 @@ class LicensePlateDetector:
         showResult("compose",self.compose)
         
     def process(self,image):
-        return self.detect(image,True)
+        return self.detect(image,False)
         #self.preprocess(image)
         #self.showall()
    
@@ -350,7 +357,7 @@ class LicensePlateDetector:
                 closing=close(mask)
                 refined_gfmask = refine_gfimage(img,closing)
                 #showResult("refined_gfmask",refined_gfmask)
-                finalmasks = mkfinalmasks(img,refined_gfmask,isday=True)
+                finalmasks = mkfinalmasks(img,refined_gfmask,isday=True,isdebug=False)
                 break
             if case('Night'):
                 finalmasks = mkfinalmasks(img,None,isday=False)
@@ -366,9 +373,11 @@ class LicensePlateDetector:
                 rois = BBoxes2ROIs(origin,bboxes)
                 for i,roi in enumerate(rois):
                     confidence = self.licenplatevalidator.process(roi,mode=colrs[colrindex])
-                    if confidence > 0.8:
-                        pts = self.licenplatevalidator.getRefinedROI()
-                        bbox = refineBBox(bboxes[i],pts)
+                    print confidence
+                    if confidence > 0.7:
+                        #pts = self.licenplatevalidator.getRefinedROI()
+                        #bbox = refineBBox(bboxes[i],pts)
+                        bbox = resizeBBox(bboxes[i],ratio=0.9)
                         return confidence,[bbox],[roi]
         '''            
         # Check Result
@@ -377,11 +386,11 @@ class LicensePlateDetector:
             for i in range(len(rois)):
                 showResult("cropped",rois[i])
         '''        
-        return 0.0,[],[]
+        return 0.0,None,None
 
 ###
 dataset_path = "/media/ubuntu/Investigation/DataSet/Image/Classification/Insurance/Insurance/Tmp/LP/"
-filename = "12.jpg"
+filename = "1.jpg"
 fullpath = dataset_path + filename
 ###
 

@@ -14,8 +14,8 @@ import scipy
 
 from feature.bbox import showResult
 from feature.colorspace import checkBlue,checkYellow,rgb2hsv
-from feature.space import Laplacian,DoG,AdaptiveThreshold,maskize,TopHat
-#from misc.preprocess import maximizeContrast as icontrast
+from feature.space import Laplacian,DoG,AdaptiveThreshold,maskize#,TopHat
+from misc.preprocess import maximizeContrast as icontrast
 
 SCALAR_BLACK = (0.0, 0.0, 0.0)
 SCALAR_WHITE = (255.0, 255.0, 255.0)
@@ -101,7 +101,7 @@ class LicensePlate(object):
         gray = cv2.cvtColor(self.bgr,cv2.COLOR_BGR2GRAY)
         if mode == "Blue":
             self.mode = "Blue"
-            self.gray = gray#icontrast(gray)#equalized_image = cv2.equalizeHist(self.gray)
+            self.gray = gray#iicontrast(gray)#contrast(gray)#equalized_image = cv2.equalizeHist(self.gray)
         else:
             self.mode = "Yellow"
             self.gray = 255 - gray
@@ -146,6 +146,7 @@ class LicensePlate(object):
         return img_contours
         
     def sort_contours_by_poistion(self):
+        '''
         matches = []
         for contour in self.contours:
             [x, y, w, h] = cv2.boundingRect(contour)
@@ -158,7 +159,9 @@ class LicensePlate(object):
             contours.append(match[1])
             
         self.contours = contours
-    
+        '''
+        self.contours.sort(key=lambda contour:cv2.boundingRect(contour)[0])
+        
     def detectcolr(self):
         c_x = self.width / 2
         c_y = self.height / 2
@@ -304,7 +307,7 @@ class LicensePlate(object):
         for time in range(3):
             if len(centers) == EXPECTED_CHAR_NUMBER:
                 break
-            for i in range(2,len(centers)):
+            for i in range(1,len(centers)):
                 dis = centers[i] - centers[i-1]
                 if dis > (self.charsmallgap*2 - delta):
                     if i == 2:
@@ -321,35 +324,51 @@ class LicensePlate(object):
         self.charsegpoints.append(self.charrightmost)
         
     def estimateLP(self,isdebug=False):
+        #
+        cur_contour_count = len(self.contours)
+        if cur_contour_count < 2:
+            return 0,0
         # calculate gaps,widths,heights of final contours
         gaps,widths,heights,centers = self.chargaps,self.charwidths,self.charheights,self.charcenters
-        biggap,smallgap,smallergap = max(gaps),statistics.median_high(gaps),statistics.median_low(gaps)
-        if biggap >= (smallgap+BIG_INTERVAL):
+        biggap = gaps[0]
+        smallgap,smallergap = statistics.median_high(gaps),statistics.median_low(gaps)
+        if smallgap == biggap or smallgap == max(gaps):
+            smallgap = smallergap
+        if biggap >= (smallgap+BIG_INTERVAL) and biggap < 2.3 * smallgap:
             isbgFound =  True
         else:
             isbgFound = False
-            biggap += BIG_INTERVAL
+            biggap = BIG_INTERVAL + smallgap#+= BIG_INTERVAL
         self.charbiggap = biggap
         self.charsmallgap = smallgap
         # detect trend
         a,b = linreg(range(len(heights)),heights)
-        #
-        cur_contour_count = len(self.contours)
-        if cur_contour_count == 0:
-            return 0,0
         #            
         width_leftmost = widths[0]
         width_rightmost = widths[cur_contour_count-1]
         rightmost = max(centers)
         leftmost = min(centers)
         # calculate centers, x position of license plate
-        char_count_present =  round(float(rightmost-leftmost-biggap) / smallgap) + 2 if isbgFound else\
-                              round(float(rightmost-leftmost) / smallgap) + 1
+        char_count_present =  int(float(rightmost-leftmost-biggap) / smallgap+0.2) + 2 if isbgFound else\
+                              int(float(rightmost-leftmost) / smallgap+0.2) + 1
         char_count_present = int(max(char_count_present,cur_contour_count))
         #print "estimateLP:char_count_present",char_count_present
         #char_count_present = 6 if char_count_present > 6 else char_count_present
+        # fill missing centers where no biggap,but pretty bigger than smallgap
+        while char_count_present > cur_contour_count and isbgFound is False:
+            for i in range(len(gaps)):
+                if gaps[i] > 1.7*smallgap:# and abs(centers[i]+smallgap - centers[i+1]) < smallgap/2:
+                    cur_contour_count += 1
+                    tmp = gaps[i]
+                    gaps[i] = smallgap
+                    gaps.insert(i+1,tmp-smallgap)
+                    centers.insert(i+1,centers[i]+smallgap)
+                    break
+            break
         while(char_count_present < EXPECTED_CHAR_NUMBER):
             if char_count_present == 6:
+                #if isbgFound is False:
+                #    centers.insert(1,leftmost+biggap)
                 if a > 0:
                     leftmost -= smallergap
                 else:
@@ -385,6 +404,7 @@ class LicensePlate(object):
                     char_count_present += 1
                 break 
         while(len(centers) < EXPECTED_CHAR_NUMBER):
+            print len(centers)
             if char_count_present == EXPECTED_CHAR_NUMBER and len(centers) == (EXPECTED_CHAR_NUMBER-1):
                 if self.chargaps[0] < smallergap*1.7:
                     if a > 0:
@@ -661,7 +681,6 @@ class LicensePlate(object):
         mat = cv2.getPerspectiveTransform(pts_map1,pts_map2)
         #
         self.resultimg = cv2.warpPerspective(bgr,mat,(PLATE_SIZE_BIG_WIDTH,PLATE_SIZE_BIG_HEIGHT))
-        showResult("fixed",self.resultimg)
         self.thr = cv2.warpPerspective(thr,mat,(PLATE_SIZE_BIG_WIDTH,PLATE_SIZE_BIG_HEIGHT))
                
     @staticmethod

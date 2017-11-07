@@ -91,13 +91,12 @@ def goodfeatures_revision(colr,isdebug=False):
     
 def refinedGoodFeatures(colr,
                         tgt,
-                        model='LP',
                         Debug=False):
     size=500.0
     h,w,c = colr.shape
     img = cv2.resize(colr,(int(w*size/h),int(size)))
     img = Denoise(img)
-    fspace = FeatureSpace(img,model)         # preprocess to get grayscale and threshold images
+    fspace = FeatureSpace(img)         # preprocess to get grayscale and threshold images
     corners =  goodFeatures(fspace)
     refined = FeatureFiltering(corners,ratio=tgt.shape[0]/size)
     if Debug:

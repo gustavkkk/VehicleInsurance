@@ -26,7 +26,7 @@ import cv2
 from feature.denoise import Denoise
 from feature.colorspace import rgb2hsv,opencv2skimage,skimage2opencv,checkBlue,checkYellow,equalizehist
 from feature.extractfeature import refinedGoodFeatures,checkFeatures,FeatureSpace,refinedCorners
-from feature.bbox import findBBox,drawBBox,resizeBBoxes,BBoxes2ROIs,showResult,contour2box
+from feature.bbox import findBBox,drawBBox,resizeBBoxes,BBoxes2ROIs,showResult,contour2bbox,close
 import time
 
 ####################################################################################
@@ -147,7 +147,7 @@ def label2contour(label):
     tmp = contour[:,1].copy()
     contour[:,1] = contour[:,0]
     contour[:,0] = tmp
-    bbox = contour2box(contour)
+    bbox = contour2bbox(contour)
     return bbox
 # Labels2Contour
 def labels2contours(labels):
@@ -227,7 +227,8 @@ def detect_by_seg_gf(origin,
 ################################GrabCut-Based##################################
 ####################################################################################
 def colormask(image,
-              isday=True):
+              isday=True,
+              isdebug=False):
     # blue mask + yellow mask
     hsv = cv2.cvtColor(image,cv2.COLOR_BGR2HSV)
     h,s,v = cv2.split(hsv)
@@ -239,7 +240,7 @@ def colormask(image,
     blue = h.copy()
     yellow = h.copy()
     if isday:
-        blue = np.where((h<105)|(h>135)|(v<40)|(s<40),0,255)
+        blue = np.where((h<100)|(h>135)|(v<40)|(s<40),0,255)
         yellow = np.where((h<20)|(h>40)|(v<40)|(s<40),0,255)
     else:
         blue = np.where((h<105)|(h>135),0,255)
@@ -254,6 +255,9 @@ def colormask(image,
     else:
         mask=(hue*sat)**3
     #
+    if isdebug:
+        showResult("colormask:mask",mask*255)
+        
     return mask
 
 def featuremask(gf_img):
@@ -274,7 +278,8 @@ def regionmask(image):
 
 def mkfinalmask(image,
                 gf_image=None,
-                isday=True):
+                isday=True,
+                isdebug=False):
     colrmask = colormask(image,isday)
     regmask = regionmask(image)
     mask = colrmask * regmask
@@ -283,6 +288,8 @@ def mkfinalmask(image,
         mask *= gfmask
         
     mask = (mask * 255).astype('uint8')
+    if isdebug:
+        showResult("mkfinalmask:mask",mask*255)
     return mask
 
 import random
@@ -331,17 +338,15 @@ def detect_by_probability(origin,
     size = 200.0
     # Resize
     img = cv2.resize(origin,(int(w*size/h),int(size)))
-    showResult("img",img)
+    #showResult("img",img)
     #  
     if dayornight(img):
         # Extract Good Features
-        corners = refinedGoodFeatures(origin,img,
-                                      model='LP')
+        corners = refinedGoodFeatures(origin,img)
         mask = checkFeatures(img,corners,False)
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT,(5,5))
-        closing=cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-        #
+        closing=close(mask)
         refined_gfmask = refine_gfimage(img,closing)
+        #showResult("refined_gfmask",refined_gfmask)
         finalmask = mkfinalmask(img,refined_gfmask,isday=True)
     else:
         finalmask = mkfinalmask(img,None,isday=False)
@@ -354,9 +359,7 @@ def detect_by_probability(origin,
     if isdebug:
         showResult("masktest",closing)
     # Find Candidate
-    bboxes = findBBox(img,closing,
-                      model='LP',
-                      debug=False)
+    bboxes = findBBox(img,closing,isdebug=True)
     # Resize
     if bboxes is not None:
         bboxes = resizeBBoxes(bboxes,h/size)
@@ -369,7 +372,7 @@ def detect_by_probability(origin,
         for i in range(len(rois)):
             showResult("cropped",rois[i])
             
-    return bboxes,rois  
+    return bboxes,rois
 ####################################################################################
 ################################GoodFeatures-Based##################################
 ####################################################################################
@@ -494,7 +497,7 @@ def detect_by_cascade(origin,
 
 ##### Test Variable
 dataset_path = "/media/ubuntu/Investigation/DataSet/Image/Classification/Insurance/Insurance/Tmp/LP/"
-filename = "193.jpg"
+filename = "29.jpg"
 fullpath = dataset_path + filename
 
 import sys
