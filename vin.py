@@ -309,15 +309,14 @@ class VIN(object):
         strings_ = VIN.ocrchecking(self.bgr,strings_,False)
         #
         if strings_ is not None:
+            marked = String.mark(self.bgr,strings_)
             if isdebug:           
-                for string in strings_:
-                    String.mark(self.bgr,string)
-                    break
+                showResult("marked",marked)
                     #drawChars((self.height,self.width),"final",string.getitems(),isdebug=isdebug)
                     #print string.result
-            return True
+            return True,strings_[0].confidence,marked
         else:
-            return False
+            return False,0.0,None
         
     def resize(self,img):
         h,w,c = img.shape
@@ -332,19 +331,22 @@ class VIN(object):
         self.bgr = cv2.resize(cropped,None,fx=ratio,fy=ratio,interpolation=cv2.INTER_CUBIC)
         self.height,self.width,c = self.bgr.shape
         
-    def process(self,img=None):
+    def process(self,img=None,isdebug=False):
         #start = time.time()
         if img is not None:
+            self.initialize()
             self.resize(img)
             self.preprocess()
-            self.showAll()
+            #self.showAll()
         self.sizefiltering()#sizefiltering
         self.chars = innerfiltering(self.chars)#innerfiltering
+        if len(self.chars) == 0:
+            return False,0.0,None
         #self.noisefiltering()#noisefiltering
-        self.posfiltering(True)#distance filtering
-        isFound = self.finalize()#makingup and finalizeing
+        self.posfiltering(isdebug)#distance filtering
+        #self.finalize(isdebug=isdebug)#makingup and finalizeing
         #print time.time() - start
-        return isFound
+        return self.finalize(isdebug=isdebug)
         
     def setcontours(self,isdebug=False):
         self.img_contour, self.contours, npaHierarchy = cv2.findContours(self.compose, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)   # find all contours        
@@ -367,17 +369,20 @@ class VIN(object):
     '''
 #http://jmgomez.me/a-fruit-image-classifier-with-python-and-simplecv/        
 ##### Test Variable
-dataset_path = "/media/ubuntu/Investigation/DataSet/Image/Classification/Insurance/Insurance/Tmp/LP/"
+dataset_path = "/media/ubuntu/Investigation/DataSet/Image/Classification/Insurance/Insurance/Tmp/VIN/"
 test_path = "/media/ubuntu/Investigation/DataSet/Image/Classification/Insurance/Tmp/VIN-scrapy/renamed/"
 filename = "2.jpg"
-fullpath = dataset_path + filename
+fullpath = test_path + filename
 
 vin = VIN()
 
+import time
+
 if __name__ == "__main__":
     #main(cv2.imread(fullpath,0))
-    vin.initialize()
-    vin.process(img=cv2.imread(fullpath))
+    start = time.time()
+    isFound,confidence,marked = vin.process(img=cv2.imread(fullpath),isdebug=True)
+    print("total elapsed time: "+str(int((time.time() - start)*1000)/1000.0)+"s")
     #VIN.detect_by_gf(cv2.imread(fullpath))
     #VIN.detect_by_erfilter(img=cv2.imread(fullpath),isdebug=True)
     #VIN.detect_by_contour(img=cv2.imread(fullpath),isdebug=True)

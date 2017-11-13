@@ -77,7 +77,7 @@ def detect(img,
 ###               
 sample_db_path = "./sample/"
 test_db_path = "/media/ubuntu/Investigation/DataSet/Image/Classification/Insurance/Insurance/Tmp/LP/"
-filename = "11.jpg"#74,87,29,37
+filename = "1.jpg"#74,87,29,37
 fullpath = test_db_path + filename
 ###
 # MSER

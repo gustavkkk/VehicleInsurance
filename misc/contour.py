@@ -624,13 +624,19 @@ class String:
         return roi
 
     @staticmethod
+    def string2bbox(img,string):
+        ROI = String.extractROI(img, string)
+        return cv2.boxPoints(ROI.rrLocationOfPlateInScene)       
+        
+    @staticmethod
     def markimage(img,string):
         ROI = String.extractROI(img, string)
         p2fRectPoints = cv2.boxPoints(ROI.rrLocationOfPlateInScene)
         cv2.line(img, tuple(p2fRectPoints[0]), tuple(p2fRectPoints[1]), SCALAR_RED, 1)
         cv2.line(img, tuple(p2fRectPoints[1]), tuple(p2fRectPoints[2]), SCALAR_RED, 1)
         cv2.line(img, tuple(p2fRectPoints[2]), tuple(p2fRectPoints[3]), SCALAR_RED, 1)
-        cv2.line(img, tuple(p2fRectPoints[3]), tuple(p2fRectPoints[0]), SCALAR_RED, 1)       
+        cv2.line(img, tuple(p2fRectPoints[3]), tuple(p2fRectPoints[0]), SCALAR_RED, 1)
+        return img
         
     @staticmethod
     def mark(img,strings,isdebug=False):
@@ -641,7 +647,8 @@ class String:
         else:
             String.markimage(img,strings)
         #showResult("roi",ROI.imgPlate)
-        showResult("marked",img)
+        #showResult("marked",img)
+        return img
 
 class ROI:
 

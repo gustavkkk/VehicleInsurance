@@ -164,11 +164,13 @@ from quality import AnalyzeImageQuality
 from misc.switch import switch
 from feature.extractfeature import refinedGoodFeatures,checkFeatures
 from feature.threshold import compositeThreshold
-from feature.bbox import findBBox,resizeBBoxes,resizeBBox,BBoxes2ROIs,showResult,close,refineBBox
+from feature.bbox import findBBox,resizeBBoxes,resizeBBox,BBoxes2ROIs,showResult,close#,refineBBox
 from feature.space import Laplacian,DoG,maskize,AdaptiveThreshold,tophatmask,NormalizeT#,NormalizeEx#,TopHat
 from misc.preprocess import maximizeContrast as icontrast
 
-def refine_gfimage(img,mask):
+import time
+
+def refine_gfimage(img,mask):#time-consuming-mask
     # Draw BBox using gf
     bboxes = findBBox(img,mask)
     if bboxes is None:
@@ -248,7 +250,6 @@ def colormask(image,
     if isdebug:
         showResult("colormask:mask",mask)
     
-
     return mask
 
 def featuremask(gf_img):
@@ -336,13 +337,14 @@ class LicensePlateDetector:
         showResult("compose",self.compose)
         
     def process(self,image):
-        return self.detect(image,False)
+        return self.detect(image)
         #self.preprocess(image)
         #self.showall()
-   
+      
     def detect(self,
                origin,
                isdebug=False):
+        start = time.time()
         # Default Size
         h,w,c = origin.shape
         size = 200.0
@@ -353,16 +355,16 @@ class LicensePlateDetector:
             if case('Day'):
                 # Extract Good Features
                 corners = refinedGoodFeatures(origin,img)
-                mask = checkFeatures(img,corners,False)
+                mask = checkFeatures(img,corners,isdebug)
                 closing=close(mask)
                 refined_gfmask = refine_gfimage(img,closing)
                 #showResult("refined_gfmask",refined_gfmask)
-                finalmasks = mkfinalmasks(img,refined_gfmask,isday=True,isdebug=False)
+                finalmasks = mkfinalmasks(img,refined_gfmask,isday=True,isdebug=isdebug)
                 break
             if case('Night'):
-                finalmasks = mkfinalmasks(img,None,isday=False)
+                finalmasks = mkfinalmasks(img,None,isday=isdebug)
                 break
-        
+
         for colrindex,fmask in enumerate(finalmasks):
             if (fmask>0).sum() == 0:
                 continue
@@ -372,12 +374,13 @@ class LicensePlateDetector:
                 bboxes = resizeBBoxes(bboxes,h/size)
                 rois = BBoxes2ROIs(origin,bboxes)
                 for i,roi in enumerate(rois):
-                    confidence = self.licenplatevalidator.process(roi,mode=colrs[colrindex])
+                    confidence = self.licenplatevalidator.process(roi,mode=colrs[colrindex],isdebug=isdebug)
                     print confidence
                     if confidence > 0.7:
                         #pts = self.licenplatevalidator.getRefinedROI()
                         #bbox = refineBBox(bboxes[i],pts)
                         bbox = resizeBBox(bboxes[i],ratio=0.9)
+                        print("total elapsed time: "+str(int((time.time() - start)*1000)/1000.0)+"s")
                         return confidence,[bbox],[roi]
         '''            
         # Check Result
@@ -390,7 +393,7 @@ class LicensePlateDetector:
 
 ###
 dataset_path = "/media/ubuntu/Investigation/DataSet/Image/Classification/Insurance/Insurance/Tmp/LP/"
-filename = "1.jpg"
+filename = "29.jpg"
 fullpath = dataset_path + filename
 ###
 

@@ -100,8 +100,10 @@ def processImg(file_path,filename):
         if case('vin'):
             app.results.append(r"   车架号")
             app.vehicleidentifier.initialize()
-            if app.vehicleidentifier.process(image):
+            isFound,confidence,markImg = app.vehicleidentifier.process(image)
+            if isFound:
                 app.results.append(r"车架号 : 有")
+                cv2.imwrite(file_path,markImg)
             else:
                 app.results.append(r"车架号 : 没有")
             break

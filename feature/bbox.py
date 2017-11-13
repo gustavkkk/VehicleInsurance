@@ -209,7 +209,7 @@ def ContourFiltering(mask,
         bbox = contour2bbox(contour)
         w = np.linalg.norm(bbox[0]-bbox[1])
         h = np.linalg.norm(bbox[1]-bbox[2])
-        w_by_h = float(w) / h
+        w_by_h = w / h if h != 0 else w
         aspect_ratio = w_by_h if w_by_h < 1 else 1/w_by_h
         roi_by_origin = float(w * h) / (height*width)
         if debug:
