@@ -5,6 +5,10 @@
   4. detect a license plate(including a sloped)
   
 ### Download
-  You can download [models & others](https://pan.baidu.com/s/1HRePvv0UVibMsXKxJOUs7g) from baidu cloud with password(jwyz).
+  You can download necessary files to run the project from cloud.
+    
+    url: https://pan.baidu.com/s/1HRePvv0UVibMsXKxJOUs7g
+    password: jwyz
+    
 ### Reference
   [MicrocontrollersAndMore](https://github.com/MicrocontrollersAndMore/OpenCV_3_License_Plate_Recognition_Python)
