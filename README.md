@@ -5,7 +5,7 @@
   4. detect a license plate(including a sloped)
   
 ### Download
-  You can download necessary files to run the project from cloud.
+  You can download [models & others](https://pan.baidu.com/s/1HRePvv0UVibMsXKxJOUs7g) from the following ulrs.
     
     url: https://pan.baidu.com/s/1HRePvv0UVibMsXKxJOUs7g
     password: jwyz
