@@ -16,4 +16,5 @@
     password: jwyz
     
 ### Reference
-  [MicrocontrollersAndMore](https://github.com/MicrocontrollersAndMore/OpenCV_3_License_Plate_Recognition_Python)
+  - [MicrocontrollersAndMore](https://github.com/MicrocontrollersAndMore/OpenCV_3_License_Plate_Recognition_Python)
+  - [tesserocr](https://github.com/sirfz/tesserocr)
