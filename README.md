@@ -3,7 +3,12 @@
   2. detect a VIN(vehicle identification number)
   3. detect a vehicle
   4. detect a license plate(including a sloped)
-  
+### Install & Run
+    git clone https://github.com/gustavkkk/VehicleInsurance
+    sudo pip install -r requirements
+    
+    python webapp.py
+
 ### Download
   You can download [models & others](https://pan.baidu.com/s/1HRePvv0UVibMsXKxJOUs7g) from the following ulrs.
     
