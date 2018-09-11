@@ -3,8 +3,9 @@
   2. detect a VIN(vehicle identification number)
   3. detect a vehicle
   4. detect a license plate(including a sloped)
-### Install & Run
-    Install
+### Setup & Run
+    Setup
+    $ sudo apt-get install tesseract-ocr libtesseract-dev libleptonica-dev
     $ git clone https://github.com/gustavkkk/VehicleInsurance
     $ cd VehicleInsurance
     $ sudo pip install -r requirements
