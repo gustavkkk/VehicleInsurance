@@ -33,8 +33,9 @@
     $ make -j4
     $ make
     $ make clean
-    $ make install
-    
+    $ sudo make install
+    $ sudo ldconfig
+
     Install Python Packages
     $ git clone https://github.com/gustavkkk/VehicleInsurance
     $ cd VehicleInsurance
