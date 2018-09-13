@@ -17,11 +17,9 @@
     $ cd ~
     $ wget https://bootstrap.pypa.io/get-pip.py
     $ sudo python get-pip.py
-    
     $ sudo apt-get update
     $ sudo apt-get upgrade
     $ sudo apt-get install build-essential cmake pkg-config libjpeg8-dev libtiff5-dev libjasper-dev libpng12-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev libgtk-3-dev libatlas-base-dev gfortran python2.7-dev python3.5-dev
-
     $ cd ~/opencv-3.1.0/
     $ mkdir build
     $ cd build
@@ -32,7 +30,12 @@
         -D OPENCV_EXTRA_MODULES_PATH=~/opencv_contrib-3.1.0/modules \
         -D PYTHON_EXECUTABLE=~/.virtualenvs/cv/bin/python \
         -D BUILD_EXAMPLES=ON ..
-        
+    $ make -j4
+    $ make
+    $ make clean
+    $ make install
+    
+    Install Python Packages
     $ git clone https://github.com/gustavkkk/VehicleInsurance
     $ cd VehicleInsurance
     $ sudo pip install -r requirements
