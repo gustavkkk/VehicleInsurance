@@ -1,4 +1,7 @@
 ### VehicleInsurance
+  This project is aiming at validating pictures of accident spot for vehicle insurances. The service only accepts meaningful
+  pictures while rejects the meaningless. It let uploading one know rejection reason with explanation to help them correct it.
+
   1. classify image into three group(that's, VIN,Vehicle,Else)
   2. detect a VIN(vehicle identification number)
   ![known](https://github.com/gustavkkk/VehicleInsurance/blob/master/vin.png)
