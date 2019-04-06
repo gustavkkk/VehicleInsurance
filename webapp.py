@@ -78,39 +78,67 @@ def processImg(file_path,filename):
     #thisiswhat = app.classifier.run(file_path)
     thisiswhat = 'lp' #, 'vin']
     image = cv2.imread(file_path)
-    for case in switch(thisiswhat):
-        app.results.append(filename + " :")
-        if case('lp'):
-            app.results.append("   Live photo")
-            # Detect Vehicle           
-            bbox_car = app.detector.detect(opencv2skimage(image))#mpimg.imread(path)
-            if bbox_car is not None:
-                img_car = cropImg_by_BBox(image,bbox_car)
-                app.results.append(r"Car : Yes ")
-                # Detect License Plate
-                confidence,bboxes_lp,rois = app.licenseplatedetector.process(img_car)
-                markImg = processLP(image,bbox_car,bboxes_lp,confidence)
-                cv2.imwrite(file_path,markImg)
-            else:
-                app.results.append(r"Car : No Front")
-                confidence,bboxes_lp,rois = app.licenseplatedetector.process(image)
-                markImg = processLP(image,None,bboxes_lp,confidence)
-                if markImg is not None:
-                    cv2.imwrite(file_path,markImg)
-            break
-        if case('vin'):
-            app.results.append(r"   VIN")
-            app.vehicleidentifier.initialize()
-            isFound,confidence,markImg = app.vehicleidentifier.process(image)
-            if isFound:
-                app.results.append(r"VIN : HAS")
-                cv2.imwrite(file_path,markImg)
-            else:
-                app.results.append(r"VIN : HASn't")
-            break
-        if case():
-            app.results.append(r"   No Idea")
-            break
+    
+    # for case in switch(thisiswhat):
+    #     app.results.append(filename + " :")
+    #     if case('lp'):
+    #         app.results.append("   Live photo")
+    #         # Detect Vehicle           
+    #         bbox_car = app.detector.detect(opencv2skimage(image))#mpimg.imread(path)
+    #         if bbox_car is not None:
+    #             img_car = cropImg_by_BBox(image,bbox_car)
+    #             app.results.append(r"Car : Yes ")
+    #             # Detect License Plate
+    #             confidence,bboxes_lp,rois = app.licenseplatedetector.process(img_car)
+    #             markImg = processLP(image,bbox_car,bboxes_lp,confidence)
+    #             cv2.imwrite(file_path,markImg)
+    #         else:
+    #             app.results.append(r"Car : No Front")
+    #             confidence,bboxes_lp,rois = app.licenseplatedetector.process(image)
+    #             markImg = processLP(image,None,bboxes_lp,confidence)
+    #             if markImg is not None:
+    #                 cv2.imwrite(file_path,markImg)
+    #         break
+    #     if case('vin'):
+    #         app.results.append(r"   VIN")
+    #         app.vehicleidentifier.initialize()
+    #         isFound,confidence,markImg = app.vehicleidentifier.process(image)
+    #         if isFound:
+    #             app.results.append(r"VIN : HAS")
+    #             cv2.imwrite(file_path,markImg)
+    #         else:
+    #             app.results.append(r"VIN : HASn't")
+    #         break
+    #     if case():
+    #         app.results.append(r"   No Idea")
+    #         break
+
+    app.results.append(filename + " :")
+    app.results.append("   Live photo")
+    # Detect Vehicle           
+    bbox_car = app.detector.detect(opencv2skimage(image))#mpimg.imread(path)
+    if bbox_car is not None:
+        img_car = cropImg_by_BBox(image,bbox_car)
+        app.results.append(r"Car : Yes ")
+        # Detect License Plate
+        confidence,bboxes_lp,rois = app.licenseplatedetector.process(img_car)
+        markImg = processLP(image,bbox_car,bboxes_lp,confidence)
+        cv2.imwrite(file_path,markImg)
+    else:
+        app.results.append(r"Car : No Front")
+        confidence,bboxes_lp,rois = app.licenseplatedetector.process(image)
+        markImg = processLP(image,None,bboxes_lp,confidence)
+        if markImg is not None:
+            cv2.imwrite(file_path,markImg)
+    
+    app.results.append(r"   VIN")
+    app.vehicleidentifier.initialize()
+    isFound,confidence,markImg = app.vehicleidentifier.process(image)
+    if isFound:
+        app.results.append(r"VIN : HAS")
+        cv2.imwrite(file_path,markImg)
+    else:
+        app.results.append(r"VIN : HASn't")
         
 def processLP(image,bbox_car,bboxes_lp,confidence):
     markImg = None
@@ -131,8 +159,8 @@ def processLP(image,bbox_car,bboxes_lp,confidence):
                 for rep in reps:
                     app.results.append(rep)
             else:
-                app.results.append(r"Analysis result : No Pass")
-                app.results.append(r"车牌 : 不全面")
+                app.results.append(r"Analysis result : No Pass " + str(confidence))
+                app.results.append(r"License plate : No Front")
 
         else:
             app.results.append(r"License plate : NO")

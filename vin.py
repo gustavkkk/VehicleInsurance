@@ -97,8 +97,12 @@ def string2txt(image,string):
     dog = DoG(gray)
     compose = maskize(lthr,dog)
     ###
-    img_contour, contours, npaHierarchy = cv2.findContours(compose, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-    cv2.drawContours(img_contour, contours, -1, SCALAR_WHITE, -1)
+    #img_contour, contours, npaHierarchy = cv2.findContours(compose, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    #cv2.drawContours(img_contour, contours, -1, SCALAR_WHITE, -1)
+    img_contour = compose
+    contours, npaHierarchy = cv2.findContours(compose, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)    
+    cv2.drawContours(compose, contours, -1, SCALAR_WHITE, -1)
+
     chars = find_possible_chars(contours,False)
     chars = innerfiltering(chars)
     chars.sort(key=lambda char:char.brX)
@@ -292,7 +296,9 @@ class VIN(object):
         if len(strings) == 0:
             return None
         string = strings[0]
-        print string2txt(image,string)
+        #string2txt(image,string)
+        strResult = string2txt(image,string)
+        print strResult.encode('utf-8')
         #print string.confidence,string.density,string.meaningfulcharcount
         if string.isAcceptable() is False or isMandatory:
             strings = String.filtering_by_ocr(strings)
@@ -349,7 +355,9 @@ class VIN(object):
         return self.finalize(isdebug=isdebug)
         
     def setcontours(self,isdebug=False):
-        self.img_contour, self.contours, npaHierarchy = cv2.findContours(self.compose, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)   # find all contours        
+        #self.img_contour, self.contours, npaHierarchy = cv2.findContours(self.compose, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)   # find all contours        
+        self.contours, npaHierarchy = cv2.findContours(self.compose, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)   # find all contours        
+        self.img_contour = self.compose
         if isdebug:
             cv2.drawContours(self.img_contour, self.contours, -1, SCALAR_WHITE, -1)
             print "\nstep 2 - contours = " + str(len(self.contours))
