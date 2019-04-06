@@ -262,7 +262,8 @@ def mask2contour(mask,
     #
     closing=close(mask)
     # Find Contours
-    imgContours,contours,hierarchy = cv2.findContours(closing, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE) 
+    #imgContours,contours,hierarchy = cv2.findContours(closing, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE) 
+    contours,hierarchy = cv2.findContours(closing, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     # Filter Contours
     bboxes = ContourFiltering(mask,contours,isdebug)
     

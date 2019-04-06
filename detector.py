@@ -183,7 +183,8 @@ def refine_gfimage(img,mask):#time-consuming-mask
         cv2.drawContours(box_img,[bbox_],0,(255,255,255),1)
     newmask = cv2.cvtColor(box_img,cv2.COLOR_BGR2GRAY)  
     #
-    img_contours,contours,hierarchy = cv2.findContours(newmask, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+    #img_contours,contours,hierarchy = cv2.findContours(newmask, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+    contours,hierarchy = cv2.findContours(newmask, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
     img_contours = np.zeros((img.shape),dtype=np.uint8)
     if len(contours) == 0:
         return mask

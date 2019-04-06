@@ -37,7 +37,7 @@ from feature.colorspace import opencv2skimage#,rgb2hsv,skimage2opencv
 from feature.bbox import cropImg_by_BBox,drawBBox,shiftBBoxes#,showResult
 #from misc import pick_one_vehicle
 from quality import AnalyzeImageQuality
-from classify import Classifier
+#from classify import Classifier
 from detector import LicensePlateDetector,VehicleDetector
 from vin import VIN
 from licenseplate import LicensePlate
@@ -53,7 +53,7 @@ app = Flask(__name__)#, static_folder='static', static_url_path='')
 UPLOAD_FOLDER = 'uploads'
 WEBFILE_FOLDER = 'webfiles'
 app.qualityanalyzer = AnalyzeImageQuality()
-app.classifier = Classifier()
+#app.classifier = Classifier()
 app.detector = VehicleDetector()
 app.licenseplatedetector = LicensePlateDetector()
 app.licenseplate = LicensePlate()
@@ -75,40 +75,41 @@ def allowed_file(filename):
            filename.rsplit('.', 1)[1] in app.config['ALLOWED_EXTENSIONS']
 
 def processImg(file_path,filename):
-    thisiswhat = app.classifier.run(file_path)
+    #thisiswhat = app.classifier.run(file_path)
+    thisiswhat = 'lp' #, 'vin']
     image = cv2.imread(file_path)
     for case in switch(thisiswhat):
         app.results.append(filename + " :")
         if case('lp'):
-            app.results.append("   现场相片")
+            app.results.append("   Live photo")
             # Detect Vehicle           
             bbox_car = app.detector.detect(opencv2skimage(image))#mpimg.imread(path)
             if bbox_car is not None:
                 img_car = cropImg_by_BBox(image,bbox_car)
-                app.results.append(r"车 : 有 ")
+                app.results.append(r"Car : Yes ")
                 # Detect License Plate
                 confidence,bboxes_lp,rois = app.licenseplatedetector.process(img_car)
                 markImg = processLP(image,bbox_car,bboxes_lp,confidence)
                 cv2.imwrite(file_path,markImg)
             else:
-                app.results.append(r"车 : 不全面")
+                app.results.append(r"Car : No Front")
                 confidence,bboxes_lp,rois = app.licenseplatedetector.process(image)
                 markImg = processLP(image,None,bboxes_lp,confidence)
                 if markImg is not None:
                     cv2.imwrite(file_path,markImg)
             break
         if case('vin'):
-            app.results.append(r"   车架号")
+            app.results.append(r"   VIN")
             app.vehicleidentifier.initialize()
             isFound,confidence,markImg = app.vehicleidentifier.process(image)
             if isFound:
-                app.results.append(r"车架号 : 有")
+                app.results.append(r"VIN : HAS")
                 cv2.imwrite(file_path,markImg)
             else:
-                app.results.append(r"车架号 : 没有")
+                app.results.append(r"VIN : HASn't")
             break
         if case():
-            app.results.append(r"   没意思")
+            app.results.append(r"   No Idea")
             break
         
 def processLP(image,bbox_car,bboxes_lp,confidence):
@@ -118,26 +119,26 @@ def processLP(image,bbox_car,bboxes_lp,confidence):
         bbox_lp = bboxes_lp[0]
         ###
         if confidence > 0.5:
-            app.results.append(r"车牌 : 有")
+            app.results.append(r"License plate : Yes")
             # Mark Image
             bbox_lp_refined = shiftBBoxes(bbox_car,[bbox_lp]) if bbox_car is not None else bbox_lp
             markImg = drawBBox(image,[bbox_lp_refined],bbox_car)  
             #
             if confidence > 0.85 and bbox_car is not None:
-                app.results.append(r"车牌 : 全面")                                    
+                app.results.append(r"License plate : FRONT")                                    
                 res,reps = detect_angle(image,bbox_lp_refined,bbox_car)
-                app.results.append(r"分析结果 : " + res)
+                app.results.append(r"Analysis result : " + res)
                 for rep in reps:
                     app.results.append(rep)
             else:
-                app.results.append(r"分析结果 : 没通过")
+                app.results.append(r"Analysis result : No Pass")
                 app.results.append(r"车牌 : 不全面")
 
         else:
-            app.results.append(r"车牌 : 没有")
+            app.results.append(r"License plate : NO")
             markImg = drawBBox(image,None,bbox_car)
     else:
-        app.results.append(r"车牌 : 不全面")
+        app.results.append(r"License plate : No Front")
         markImg = drawBBox(image,None,bbox_car)
     return markImg
             
@@ -176,18 +177,18 @@ def upload_file():
                     processImg(file_path,filename)
                     break
                 if case('Blurry'):
-                    app.results.append(r"   模糊")
+                    app.results.append(r"   blurry")
                     break
                 if case('Reflective'):
-                    app.results.append(r"   不清楚")
+                    app.results.append(r"   Not clear")
                     processImg(file_path,filename)
                     break
                 if case('Too Reflective'):
-                    app.results.append(r"   曝光过度")
+                    app.results.append(r"   Overexposed")
                     break
             end=time.time()
             elapsedtime = end-start
-            app.results.append(r"经过时间 : " + str(int(elapsedtime*1000)/1000.0) + "s ")
+            app.results.append(r"Elapsed time : " + str(int(elapsedtime*1000)/1000.0) + "s ")
             #######################
             #######################
             # Save Image and Result
@@ -206,7 +207,7 @@ def upload_file():
         results += html.result_value_header + result + html.result_value_tail
     image = ""
     if exists(os.path.join(app.config['UPLOAD_FOLDER'], app.filename)):
-        image = html.image_header + app.filename + html.image_tail
+        image = html.image_header + app.filename + '?' + str(time.time()) + html.image_tail 
     return  html.header + \
             html.result_header + \
             results + \
@@ -244,4 +245,4 @@ app.wsgi_app = SharedDataMiddleware(app.wsgi_app, {
 })
     
 if __name__ == "__main__":
-    app.run()#host= '0.0.0.0', debug=True, port=4000)
+    app.run(host= '0.0.0.0', debug=True, port=4000)
