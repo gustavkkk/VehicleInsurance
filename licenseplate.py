@@ -438,7 +438,8 @@ class LicensePlate(object):
     def first_filtering(self,
                         isdebug=False):
         
-        img_contour, contours, npaHierarchy = cv2.findContours(self.thr, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE) # find all contours
+        #img_contour, contours, npaHierarchy = cv2.findContours(self.thr, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE) # find all contours
+        contours, npaHierarchy = cv2.findContours(self.thr, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         height, width = self.thr.shape
         img_contour = np.zeros((height, width, 3), np.uint8)
         

@@ -500,7 +500,8 @@ class String:
                 string = String.makesubstring(chars,string.StartIndex,string.LastIndex,string.chargap)#string.refinestring()#
                 string.meaningfulcharcount = count
                 confidence = string.confidence
-                print confidence,string.result,string.estimatedcharcount
+                #print confidence,string.result,string.estimatedcharcount
+                print confidence,string.result.encode('utf-8').strip(),string.estimatedcharcount
                 if confidence > 0.95:
                     strings_.append(string)
                     break
@@ -510,7 +511,7 @@ class String:
                         string.push(chars[string.LastIndex+1])
                         string.calcConfidence()
                         string.LastIndex+=1
-                        print string.confidence,string.result,string.charcount
+                        print string.confidence,string.result.encode('utf-8').strip(),string.charcount
 
                         if string.confidence < confidence:
                             string.pop()
