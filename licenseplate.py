@@ -404,7 +404,7 @@ class LicensePlate(object):
                     char_count_present += 1
                 break 
         while(len(centers) < EXPECTED_CHAR_NUMBER):
-            print len(centers)
+            print(len(centers))
             if char_count_present == EXPECTED_CHAR_NUMBER and len(centers) == (EXPECTED_CHAR_NUMBER-1):
                 if self.chargaps[0] < smallergap*1.7:
                     if a > 0:
@@ -467,7 +467,7 @@ class LicensePlate(object):
         self.charheight = statistics.median_high(cheights)
         self.charwidth = statistics.median_high(cwidths)
         if isdebug:
-            print "\nfiltering step 1 - contours = " + str(len(contours))
+            print("\nfiltering step 1 - contours = " + str(len(contours)))
             showResult("contours",img_contour)
         return self.contours
 

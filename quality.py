@@ -40,7 +40,7 @@ class AnalyzeImageQuality():
     def dayornight(img):
         h,w,c = img.shape
         avg = np.sum(img) / (w*h*c)
-        print avg
+        print(avg)
         if avg > 50:#70:
             return 'Day'
         else:
@@ -76,6 +76,6 @@ if __name__ == "__main__":
     s = time.time()
     image = cv2.imread(fullpath)
     aiq = AnalyzeImageQuality(image)
-    print aiq.process(image)
-    print AnalyzeImageQuality.dayornight(image)
-    print ("elapsed time : " + str(int((time.time() - s)*1000)/1000.0) + "s ")
+    print(aiq.process(image))
+    print(AnalyzeImageQuality.dayornight(image))
+    print("elapsed time : " + str(int((time.time() - s)*1000)/1000.0) + "s ")

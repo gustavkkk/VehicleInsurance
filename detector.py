@@ -375,7 +375,7 @@ class LicensePlateDetector:
                 rois = BBoxes2ROIs(origin,bboxes)
                 for i,roi in enumerate(rois):
                     confidence = self.licenplatevalidator.process(roi,mode=colrs[colrindex],isdebug=isdebug)
-                    print confidence
+                    print(confidence)
                     if confidence > 0.7:
                         #pts = self.licenplatevalidator.getRefinedROI()
                         #bbox = refineBBox(bboxes[i],pts)

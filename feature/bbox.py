@@ -12,7 +12,7 @@ ref:http://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgpr
 import cv2
 from skimage import io
 import numpy as np
-from denoise import Denoise
+from .denoise import Denoise
 #from extractfeature import morphological
 from matplotlib import pyplot as plt
 from feature.colorspace import checkBlue,checkYellow,rgb2hsv,opencv2skimage,skimage2opencv
@@ -352,7 +352,7 @@ def masked(img,
            isdebug=False):
     if img.shape != mask.shape:
         mask = cv2.resize(mask,(img.shape[1],img.shape[0]))
-    print mask.shape
+    print(mask.shape)
     mask[mask>0]=1
     masked = img.copy()
     masked = masked*mask[:,:,np.newaxis]

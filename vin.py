@@ -292,7 +292,7 @@ class VIN(object):
         if len(strings) == 0:
             return None
         string = strings[0]
-        print string2txt(image,string)
+        print(string2txt(image,string))
         #print string.confidence,string.density,string.meaningfulcharcount
         if string.isAcceptable() is False or isMandatory:
             strings = String.filtering_by_ocr(strings)
@@ -352,7 +352,7 @@ class VIN(object):
         self.img_contour, self.contours, npaHierarchy = cv2.findContours(self.compose, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)   # find all contours        
         if isdebug:
             cv2.drawContours(self.img_contour, self.contours, -1, SCALAR_WHITE, -1)
-            print "\nstep 2 - contours = " + str(len(self.contours))
+            print("\nstep 2 - contours = " + str(len(self.contours)))
             showResult("contours",self.img_contour)
 
     '''
@@ -371,7 +371,7 @@ class VIN(object):
 ##### Test Variable
 dataset_path = "/media/ubuntu/Investigation/DataSet/Image/Classification/Insurance/Insurance/Tmp/VIN/"
 test_path = "/media/ubuntu/Investigation/DataSet/Image/Classification/Insurance/Tmp/VIN-scrapy/renamed/"
-filename = "2.jpg"
+filename = "28.jpg"
 fullpath = test_path + filename
 
 vin = VIN()
@@ -381,7 +381,7 @@ import time
 if __name__ == "__main__":
     #main(cv2.imread(fullpath,0))
     start = time.time()
-    isFound,confidence,marked = vin.process(img=cv2.imread(fullpath),isdebug=True)
+    isFound,confidence,marked = vin.process(img=cv2.imread(fullpath),isdebug=False)
     print("total elapsed time: "+str(int((time.time() - start)*1000)/1000.0)+"s")
     #VIN.detect_by_gf(cv2.imread(fullpath))
     #VIN.detect_by_erfilter(img=cv2.imread(fullpath),isdebug=True)

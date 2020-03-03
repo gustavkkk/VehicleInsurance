@@ -4,6 +4,7 @@
 Created on Mon Oct 23 22:32:26 2017
 
 @author: ubuntu
+sudo apt install tesseract-ocr-all
 """
 
 import sys
@@ -28,13 +29,13 @@ class TesserOCR(object):
 
     @staticmethod    
     def getinfo():
-        print tesserocr.tesseract_version()  # print tesseract-ocr version
-        print tesserocr.get_languages()
+        print(tesserocr.tesseract_version())  # print tesseract-ocr version
+        print(tesserocr.get_languages())
 
     @staticmethod        
     def img2string(image):
         pimg = opencv2pillow(image)
-        print tesserocr.image_to_text(pimg)
+        print(tesserocr.image_to_text(pimg))
 
     @staticmethod
     def analyzeRIL(image):
@@ -42,7 +43,7 @@ class TesserOCR(object):
         with PyTessBaseAPI() as api:
             api.SetImage(pimg)
             boxes = api.GetComponentImages(RIL.TEXTLINE, True)
-            print 'Found {} textline image components.'.format(len(boxes))
+            print('Found {} textline image components.'.format(len(boxes)))
             for i, (im, box, _, _) in enumerate(boxes):
                 # im is a PIL image object
                 # box is a dict with x, y, w and h keys
@@ -65,10 +66,10 @@ class TesserOCR(object):
             api.Recognize()   
             it = api.AnalyseLayout()
             orientation, direction, order, deskew_angle = it.Orientation()
-            print "Orientation: {:d}".format(orientation)
-            print "WritingDirection: {:d}".format(direction)
-            print "TextlineOrder: {:d}".format(order)
-            print "Deskew angle: {:.4f}".format(deskew_angle)
+            print("Orientation: {:d}".format(orientation))
+            print("WritingDirection: {:d}".format(direction))
+            print("TextlineOrder: {:d}".format(order))
+            print("Deskew angle: {:.4f}".format(deskew_angle))
 
     @staticmethod    
     def segmentation(image):
@@ -103,17 +104,17 @@ class TesserOCR(object):
                 symbol = r.GetUTF8Text(level)  # r == ri
                 conf = r.Confidence(level)
                 if symbol:
-                    print u'symbol {}, conf: {}'.format(symbol, conf),
+                    print(u'symbol {}, conf: {}'.format(symbol, conf))
                 indent = False
                 ci = r.GetChoiceIterator()
                 for c in ci:
                     if indent:
-                        print '\t\t ',
-                    print '\t- ',
+                        print('\t\t ')
+                    print('\t- ')
                     choice = c.GetUTF8Text()  # c == ci
-                    print u'{} conf: {}'.format(choice, c.Confidence())
+                    print(u'{} conf: {}'.format(choice, c.Confidence()))
                     indent = True
-                print '---------------------------------------------'
+                print('---------------------------------------------')
 ##################################################################################################
 ##################################################################################################
 ##################################################################################################
