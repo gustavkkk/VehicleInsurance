@@ -3,7 +3,7 @@
 """
 Created on Sat Oct 21 10:19:31 2017
 
-@author: ubuntu
+@author: junying
 
 regular expression:http://www.tutorialspoint.com/python/python_reg_expressions.htm
 """

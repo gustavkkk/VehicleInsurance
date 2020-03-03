@@ -3,7 +3,7 @@
 """
 Created on Thu Oct  5 22:14:22 2017
 
-@author: ubuntu
+@author: junying
 """
 
 header = '''

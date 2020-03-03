@@ -3,7 +3,7 @@
 """
 Created on Sat Oct 14 07:22:18 2017
 
-@author: ubuntu
+@author: junying
 """
 
 import cv2

@@ -3,7 +3,7 @@
 """
 Created on Thu Oct  5 06:05:39 2017
 
-@author: ubuntu
+@author: junying
 """
 
 """

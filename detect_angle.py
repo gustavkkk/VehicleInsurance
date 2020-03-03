@@ -3,7 +3,7 @@
 """
 Created on Sun Oct  8 08:10:43 2017
 
-@author: ubuntu
+@author: junying
 """
 from misc.switch import switch
 

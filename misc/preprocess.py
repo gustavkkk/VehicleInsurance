@@ -3,7 +3,7 @@
 """
 Created on Sat Oct  7 05:28:35 2017
 
-@author: ubuntu
+@author: junying
 """
 
 # Preprocess.py

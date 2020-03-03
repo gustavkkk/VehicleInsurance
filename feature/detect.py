@@ -3,7 +3,7 @@
 """
 Created on Sat Oct 14 07:11:36 2017
 
-@author: ubuntu
+@author: junying
 
 https://stackoverflow.com/questions/4706118/read-numbers-and-letters-from-an-image-using-opencv
 https://github.com/opencv/opencv_contrib/tree/master/modules/text/samples

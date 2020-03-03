@@ -3,7 +3,7 @@
 """
 Created on Sat Nov  4 10:14:48 2017
 
-@author: ubuntu
+@author: junying
 """
 
 import os

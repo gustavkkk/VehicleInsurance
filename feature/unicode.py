@@ -3,7 +3,7 @@
 """
 Created on Fri Nov  3 22:27:31 2017
 
-@author: ubuntu
+@author: junying
 """
 import re
 

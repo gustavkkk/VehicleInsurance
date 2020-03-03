@@ -3,7 +3,7 @@
 """
 Created on Sat Oct  7 03:41:05 2017
 
-@author: ubuntu
+@author: junying
 """
 
 class switch(object):

@@ -3,7 +3,7 @@
 """
 Created on Thu Oct 12 10:43:03 2017
 
-@author: ubuntu
+@author: junying
 """
 
 from skimage.filters import (threshold_otsu, threshold_niblack,threshold_yen,threshold_li,

@@ -3,7 +3,7 @@
 """
 Created on Mon Oct  2 10:39:32 2017
 
-@author: ubuntu
+@author: junying
 
 ref:https://www.pyimagesearch.com/2015/10/05/opencv-gamma-correction/
     http://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_contours/py_table_of_contents_contours/py_table_of_contents_contours.html?highlight=convex

@@ -5,3 +5,6 @@
 
 init:
 	@cd checkpoints && unrar x ssd_300_vgg.ckpt.part1.rar
+
+clean:
+	@find . -name "*.pyc"|xargs rm

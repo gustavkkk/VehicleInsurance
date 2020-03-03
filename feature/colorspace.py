@@ -3,7 +3,7 @@
 """
 Created on Tue Oct  3 06:33:03 2017
 
-@author: ubuntu
+@author: junying
 
 ref:https://stackoverflow.com/questions/12357732/hsv-color-ranges-table
     https://en.wikipedia.org/wiki/Web_colors#HTML_color_names

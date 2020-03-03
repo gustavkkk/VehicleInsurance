@@ -3,7 +3,7 @@
 """
 Created on Thu Oct  5 05:06:47 2017
 
-@author: ubuntu
+@author: junying
 """
 ##
 sample_db_path = "./sample/"

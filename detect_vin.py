@@ -3,7 +3,7 @@
 """
 Created on Mon Oct  2 10:39:32 2017
 
-@author: ubuntu
+@author: junying
 
 ref:https://www.pyimagesearch.com/2015/10/05/opencv-gamma-correction/
 """

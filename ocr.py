@@ -3,7 +3,7 @@
 """
 Created on Mon Oct 23 22:32:26 2017
 
-@author: ubuntu
+@author: junying
 sudo apt install tesseract-ocr-all
 """
 

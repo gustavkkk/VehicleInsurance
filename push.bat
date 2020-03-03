@@ -1,2 +1,0 @@
-python push.py
-pause

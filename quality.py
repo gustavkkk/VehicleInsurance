@@ -3,7 +3,7 @@
 """
 Created on Fri Oct 27 22:49:10 2017
 
-@author: ubuntu
+@author: junying
 
 ref:https://www.pyimagesearch.com/2015/09/07/blur-detection-with-opencv/
 """

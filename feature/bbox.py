@@ -3,7 +3,7 @@
 """
 Created on Mon Oct  2 22:10:46 2017
 
-@author: ubuntu
+@author: junying
 
 ref:http://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_contours/py_contour_features/py_contour_features.html?highlight=rectangle
     https://stackoverflow.com/questions/42235429/python-opencv-shape-detection
