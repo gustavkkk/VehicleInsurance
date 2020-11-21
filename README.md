@@ -4,10 +4,10 @@
 
   1. classify image into three group(that's, VIN,Vehicle,Else)
   2. detect a VIN(vehicle identification number)
-  ![known](https://github.com/gustavkkk/VehicleInsurance/blob/master/vin.png)
+  ![known](https://github.com/gustavkkk/VehicleInsurance/blob/master/imgs/vin.png)
   3. detect a vehicle
   4. detect a license plate(including a sloped)
-  ![known](https://github.com/gustavkkk/VehicleInsurance/blob/master/lp.png)
+  ![known](https://github.com/gustavkkk/VehicleInsurance/blob/master/imgs/lp.png)
   
 ### Setup & Run
     Setup
